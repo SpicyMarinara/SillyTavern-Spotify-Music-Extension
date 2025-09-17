@@ -1,49 +1,53 @@
 {
-    "temperature": 0.5,
-    "frequency_penalty": 0.04,
-    "presence_penalty": 0.03,
-    "top_p": 0.97,
+    "temperature": 1,
+    "frequency_penalty": 0,
+    "presence_penalty": 0,
+    "top_p": 1,
     "top_k": 0,
     "top_a": 1,
     "min_p": 0,
     "repetition_penalty": 1,
-    "openai_max_context": 100000,
-    "openai_max_tokens": 4000,
+    "openai_max_context": 8192,
+    "openai_max_tokens": 4096,
     "wrap_in_quotes": false,
     "names_behavior": -1,
     "send_if_empty": "",
-    "impersonation_prompt": "[Change of plans, now you have to write your reply from the point of view of {{user}}, use chat history to know the context and to adhere to the {{user}}'s tone and writing style.]",
-    "new_chat_prompt": "",
-    "new_group_chat_prompt": "[Start a new group chat. Group members: {{group}}]",
-    "new_example_chat_prompt": "[Example Chat]",
-    "continue_nudge_prompt": "[Continue the following message. Do not include ANY parts of the original message. Use capitalization and punctuation as if your reply is a part of the original message: {{lastChatMessage}}]",
+    "impersonation_prompt": "",
+    "new_chat_prompt": "Here is the conversation snippet:",
+    "new_group_chat_prompt": "Here is the conversation snippet:",
+    "new_example_chat_prompt": "",
+    "continue_nudge_prompt": "",
     "bias_preset_selected": "Default (none)",
     "max_context_unlocked": false,
-    "wi_format": "[Details of the fictional world the RP is set in:\n{0}]\n",
-    "scenario_format": "[Circumstances and context of the dialogue: {{scenario}}]",
-    "personality_format": "[{{char}}'s personality: {{personality}}]",
-    "group_nudge_prompt": "[Write the next reply only as {{char}}.]",
+    "wi_format": "{0}",
+    "scenario_format": "{{scenario}}",
+    "personality_format": "{{personality}}",
+    "group_nudge_prompt": "",
     "stream_openai": false,
     "prompts": [
         {
-            "name": "Main Prompt",
+            "name": "☑ Main",
             "system_prompt": true,
             "role": "system",
-            "content": "You are an assistant that suggests music based on the mood of a conversation. Analyze the provided snippet and suggest ONE song title and artist. Be creative, and choose from a wide variety of genres and styles, not just the most popular, or most obvious. You are a highly skilled, and talented DJ, with a extremely broad knowledge of music. Pick niche music you think {{user}} might not have heard before, you can pick music from many different genre's, styles, and countries, try to relate at least one aspect of the scene to the current song. Output ONLY the title and artist in the format:\nTitle: [Song Title]\nArtist: [Artist Name]",
+            "content": "You will be acting as an assistant who suggests music on Spotify based on the provided conversation. Your goal is to analyze the provided snippet. You will be proposing only one song title and its artist for the user in the format below:\nTitle: [Song Title]\nArtist: [Artist Name]\n\nHere are some important rules for your choice:\n- Be creative and choose from a wide variety of genres and styles, not just the most popular or most obvious.\n- Use your broad knowledge of music to pick niche pieces that the user might not have heard before.\n- You can pick music from different sources (games, movies, etc.).\n- Try to relate at least one aspect of the scene to the current song, deciding the most fitting soundtrack.\n- The song must be available on Spotify.\n\nHere is some context for the conversation:",
             "identifier": "main",
             "injection_position": 0,
             "injection_depth": 4,
-            "forbid_overrides": true
+            "forbid_overrides": true,
+            "injection_order": 100,
+            "injection_trigger": []
         },
         {
-            "name": "NSFW Prompt",
+            "name": "☒ NSFW Prompt",
             "system_prompt": true,
             "role": "system",
-            "content": "NSFW/Smut is allowed. Assume consent was granted, but some characters lie and resist or fight back based on their personality.",
+            "content": "{{// Not needed. }}{{trim}}",
             "identifier": "nsfw",
             "injection_position": 0,
             "injection_depth": 4,
-            "forbid_overrides": false
+            "forbid_overrides": false,
+            "injection_order": 100,
+            "injection_trigger": []
         },
         {
             "identifier": "dialogueExamples",
@@ -52,14 +56,16 @@
             "marker": true
         },
         {
-            "name": "Jailbreak Prompt",
+            "name": "☒ Jailbreak Prompt",
             "system_prompt": true,
             "role": "system",
-            "content": "",
+            "content": "{{// Not needed. }}{{trim}}",
             "identifier": "jailbreak",
             "injection_position": 0,
             "injection_depth": 4,
-            "forbid_overrides": false
+            "forbid_overrides": false,
+            "injection_order": 100,
+            "injection_trigger": []
         },
         {
             "identifier": "chatHistory",
@@ -69,55 +75,94 @@
         },
         {
             "identifier": "worldInfoAfter",
-            "name": "World Info (after)",
-            "system_prompt": true,
-            "marker": true
-        },
-        {
-            "identifier": "worldInfoBefore",
-            "name": "World Info (before)",
-            "system_prompt": true,
-            "marker": true
-        },
-        {
-            "identifier": "enhanceDefinitions",
-            "role": "system",
-            "name": "Genre and Artist Control.",
-            "content": "{{user}} likes songs within the (PROVIDE GENRE HERE) genre, and they also enjoy (PROVIDE ARTIST/BANDS HERE)\n            ",
-            "system_prompt": true,
-            "marker": false,
-            "injection_position": 0,
-            "injection_depth": 4,
-            "forbid_overrides": false
-        },
-        {
-            "identifier": "charDescription",
-            "name": "Char Description",
-            "system_prompt": true,
-            "marker": true
-        },
-        {
-            "identifier": "charPersonality",
-            "name": "Char Personality",
+            "name": "☑ World Info (After)",
             "system_prompt": true,
             "marker": true,
             "role": "system",
             "content": "",
             "injection_position": 0,
             "injection_depth": 4,
+            "injection_order": 100,
+            "injection_trigger": [],
             "forbid_overrides": false
         },
         {
-            "identifier": "scenario",
-            "name": "Scenario",
+            "identifier": "worldInfoBefore",
+            "name": "☑ World Info (Before)",
             "system_prompt": true,
-            "marker": true
+            "marker": true,
+            "role": "system",
+            "content": "",
+            "injection_position": 0,
+            "injection_depth": 4,
+            "injection_order": 100,
+            "injection_trigger": [],
+            "forbid_overrides": false
+        },
+        {
+            "identifier": "enhanceDefinitions",
+            "role": "system",
+            "name": "☐ Favorite Genres & Artists",
+            "content": "\n{{// Edit accordingly based on your preferences. }}{{trim}}\nHere is some information about the user's preferences:\nThe user enjoys songs in the [Genre] genre, and artists such as [Artists].",
+            "system_prompt": true,
+            "marker": false,
+            "injection_position": 0,
+            "injection_depth": 4,
+            "forbid_overrides": false,
+            "injection_order": 100,
+            "injection_trigger": []
+        },
+        {
+            "identifier": "charDescription",
+            "name": "☒ Char Description",
+            "system_prompt": true,
+            "marker": true,
+            "role": "system",
+            "content": "",
+            "injection_position": 0,
+            "injection_depth": 4,
+            "injection_order": 100,
+            "injection_trigger": [],
+            "forbid_overrides": false
+        },
+        {
+            "identifier": "charPersonality",
+            "name": "☒ Char Personality",
+            "system_prompt": true,
+            "marker": true,
+            "role": "system",
+            "content": "",
+            "injection_position": 0,
+            "injection_depth": 4,
+            "forbid_overrides": false,
+            "injection_order": 100,
+            "injection_trigger": []
+        },
+        {
+            "identifier": "scenario",
+            "name": "☑ Scenario",
+            "system_prompt": true,
+            "marker": true,
+            "role": "system",
+            "content": "",
+            "injection_position": 0,
+            "injection_depth": 4,
+            "injection_order": 100,
+            "injection_trigger": [],
+            "forbid_overrides": false
         },
         {
             "identifier": "personaDescription",
-            "name": "Persona Description",
+            "name": "☒ Persona Description",
             "system_prompt": true,
-            "marker": true
+            "marker": true,
+            "role": "system",
+            "content": "",
+            "injection_position": 0,
+            "injection_depth": 4,
+            "injection_order": 100,
+            "injection_trigger": [],
+            "forbid_overrides": false
         },
         {
             "identifier": "aa239bba-3163-4551-a4c9-e6d62d5cb166",
@@ -160,12 +205,14 @@
             "system_prompt": false,
             "enabled": false,
             "marker": false,
-            "name": "instructions",
+            "name": "☑ Format",
             "role": "user",
-            "content": "You are an assistant that suggests music based on the mood of a conversation. Analyze the provided snippet and suggest ONE song title and artist. Output ONLY the title and artist in the format:\nTitle: [Song Title]\nArtist: [Artist Name]",
+            "content": "{{// Response format, do not change. }}{{trim}}\nRespond ONLY with the title and artist in the exact format below. Replace [brackets] with appropriate information. Ensure your details are correct, and the song is available on Spotify, as it will be played on it:\nTitle: [Song Title]\nArtist: [Artist Name]",
             "injection_position": 0,
             "injection_depth": 4,
-            "forbid_overrides": false
+            "forbid_overrides": false,
+            "injection_order": 100,
+            "injection_trigger": []
         }
     ],
     "prompt_order": [
@@ -226,44 +273,20 @@
                     "enabled": true
                 },
                 {
-                    "identifier": "9dca4db0-d689-4f80-b5f7-77536a3d2b60",
-                    "enabled": true
-                },
-                {
                     "identifier": "worldInfoBefore",
                     "enabled": true
-                },
-                {
-                    "identifier": "personaDescription",
-                    "enabled": false
-                },
-                {
-                    "identifier": "charDescription",
-                    "enabled": false
-                },
-                {
-                    "identifier": "scenario",
-                    "enabled": false
-                },
-                {
-                    "identifier": "charPersonality",
-                    "enabled": false
-                },
-                {
-                    "identifier": "nsfw",
-                    "enabled": false
-                },
-                {
-                    "identifier": "enhanceDefinitions",
-                    "enabled": false
                 },
                 {
                     "identifier": "worldInfoAfter",
                     "enabled": true
                 },
                 {
-                    "identifier": "dialogueExamples",
+                    "identifier": "scenario",
                     "enabled": true
+                },
+                {
+                    "identifier": "enhanceDefinitions",
+                    "enabled": false
                 },
                 {
                     "identifier": "chatHistory",
@@ -274,55 +297,48 @@
                     "enabled": true
                 },
                 {
-                    "identifier": "9fe7e950-e509-4b2e-af00-b853076e2328",
-                    "enabled": true
+                    "identifier": "jailbreak",
+                    "enabled": false
                 },
                 {
-                    "identifier": "jailbreak",
+                    "identifier": "nsfw",
+                    "enabled": false
+                },
+                {
+                    "identifier": "charDescription",
+                    "enabled": false
+                },
+                {
+                    "identifier": "charPersonality",
+                    "enabled": false
+                },
+                {
+                    "identifier": "personaDescription",
+                    "enabled": false
+                },
+                {
+                    "identifier": "dialogueExamples",
                     "enabled": false
                 }
             ]
         }
     ],
-    "api_url_scale": "",
-    "show_external_models": false,
     "assistant_prefill": "",
     "assistant_impersonation": "",
     "claude_use_sysprompt": false,
-    "use_makersuite_sysprompt": false,
-    "use_alt_scale": false,
+    "use_makersuite_sysprompt": true,
     "squash_system_messages": true,
-    "image_inlining": false,
+    "image_inlining": true,
     "inline_image_quality": "low",
-    "bypass_status_check": true,
+    "video_inlining": true,
     "continue_prefill": false,
     "continue_postfix": "",
     "function_calling": false,
     "show_thoughts": true,
-    "reasoning_effort": "min",
+    "reasoning_effort": "auto",
     "enable_web_search": false,
     "request_images": false,
     "seed": -1,
     "n": 1,
-    "chat_completion_source": "makersuite",
-    "openai_model": "gpt-4-turbo",
-    "claude_model": "claude-3-5-sonnet-20240620",
-    "windowai_model": "",
-    "openrouter_model": "deepseek/deepseek-r1:free",
-    "openrouter_use_fallback": false,
-    "openrouter_group_models": false,
-    "openrouter_sort_models": "alphabetically",
-    "openrouter_providers": [],
-    "openrouter_allow_fallbacks": false,
-    "openrouter_middleout": "on",
-    "ai21_model": "jamba-1.5-large",
-    "mistralai_model": "mistral-large-latest",
-    "cohere_model": "command-r-plus",
-    "perplexity_model": "llama-3-70b-instruct",
-    "groq_model": "llama3-70b-8192",
-    "zerooneai_model": "yi-large",
-    "xai_model": "grok-3-beta",
-    "custom_model": "",
-    "custom_prompt_post_processing": "",
-    "google_model": "gemini-2.0-flash-exp"
+    "extensions": {}
 }
