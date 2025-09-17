@@ -1,13 +1,12 @@
 // --- START OF FILE index.js ---
 
 import { getContext } from '../../../extensions.js';
-// We don't import getCsrfToken, as we will access it directly from the DOM.
-import { callPopup, eventSource, event_types, generateQuietPrompt, generateRaw } from '../../../../script.js';
+import { eventSource, event_types, generateQuietPrompt, generateRaw, token } from '../../../../script.js';
 
-const extensionName = "SIllytavern-Moodmusic-Ext";
+const extensionName = "SillyTavern-Spotify-Music-Extension";
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
 const PLUGIN_API_BASE = '/api/plugins/moodmusic';
-const LOG_PREFIX = "[MoodMusic Ext]";
+const LOG_PREFIX = "[Spotify Music]";
 
 // Configuration and State Variables
 const MUSIC_PRESET_NAME = "Music";
@@ -27,14 +26,22 @@ let $presetDropdown = null; // Cached jQuery object for the preset dropdown
 let lastPlaybackStopTime = 0;
 let isAnalysisInProgress = false;
 let isExtensionActive = true;
+let lastProcessedMessageId = null;
+let analysisTimeout = null;
+let useMusicPreset = true; // true = use Music.json preset, false = use current model
+let useLikedSongsFallback = true; // Use Liked Songs as fallback when AI suggestions aren't found
+let lastAnalysisTime = 0;
+const MIN_ANALYSIS_INTERVAL_MS = 3000; // Minimum 3 seconds between analyses
+let isAutoTriggerSetup = false; // Prevent duplicate event listener setup
+let lastEventTimestamp = 0; // Track last event to prevent rapid-fire events
+let currentRequestId = null; // Track the current request to prevent overlaps
+let requestCounter = 0; // Counter for unique request IDs
 
-// OPTIMIZED: Helper to get standard API headers with CSRF token
+// Helper to get standard API headers with CSRF token
 function getApiHeaders() {
     return {
         'Content-Type': 'application/json',
-        // DEFINITIVE FIX: Read the CSRF token directly from the body's data attribute.
-        // This is the most robust method and avoids issues with function scope or timing.
-        'X-CSRF-Token': $('body').data('csrf-token'),
+        'X-CSRF-Token': token,
     };
 }
 
@@ -46,7 +53,7 @@ function updateCredentialsStatusUI(status) {
     if (!credsStatusText.length) { console.warn(`${LOG_PREFIX} [updateCredsUI] Creds status UI not found.`); return; }
 
     if (status && status.clientIdSet && status.clientSecretSet) {
-        credsStatusText.text('Set').css('color', 'lightgreen');
+        credsStatusText.text('Saved ✓').css('color', 'lightgreen');
         areServerCredentialsSet = true;
         loginButton.prop('disabled', false).attr('title', 'Login to Spotify');
     } else {
@@ -105,18 +112,117 @@ function updateToggleButtonUI() {
     }
 }
 
-// API Calls to Server Plugin
+// Model switching functionality
+function switchModelMode() {
+    useMusicPreset = !useMusicPreset;
+    updateModelStatusUI();
+
+    const mode = useMusicPreset ? 'Music.json preset' : 'current main model';
+    toastr.info(`Spotify Music: Switched to ${mode}`);
+    console.log(`${LOG_PREFIX} Model mode switched to: ${mode}`);
+}
+
+function updateModelStatusUI() {
+    const statusText = useMusicPreset ? 'Music.json preset' : 'Current main model';
+    $('#moodmusic-model-status').text(statusText);
+}
+
+// Liked Songs fallback functionality
+function loadLikedSongsSettings() {
+    const saved = localStorage.getItem('moodmusic_use_liked_fallback');
+    if (saved !== null) {
+        useLikedSongsFallback = JSON.parse(saved);
+    }
+    $('#moodmusic-use-liked-fallback').prop('checked', useLikedSongsFallback);
+}
+
+function saveLikedSongsSettings() {
+    useLikedSongsFallback = $('#moodmusic-use-liked-fallback').prop('checked');
+    localStorage.setItem('moodmusic_use_liked_fallback', JSON.stringify(useLikedSongsFallback));
+    console.log(`${LOG_PREFIX} Liked Songs fallback setting saved: ${useLikedSongsFallback}`);
+}
+
+async function testLikedSongs() {
+    if (!isAuthenticated) {
+        toastr.error("Spotify Music: Cannot test - not logged into Spotify");
+        return;
+    }
+
+    console.log(`${LOG_PREFIX} Testing Liked Songs playback`);
+    toastr.info("Spotify Music: Testing your Liked Songs...");
+
+    try {
+        const success = await requestPlayLikedSongs();
+        if (success) {
+            toastr.success("Spotify Music: Successfully started playing your Liked Songs!");
+        }
+    } catch (error) {
+        console.error(`${LOG_PREFIX} Error testing Liked Songs:`, error);
+        toastr.error("Spotify Music: Failed to test Liked Songs");
+    }
+}
+
+async function requestPlayLikedSongs() {
+    const LOG_PREFIX_FUNC = `${LOG_PREFIX} [requestPlayLikedSongs]`;
+
+    if (!isAuthenticated) {
+        toastr.error("Spotify Music: Cannot play - not logged into Spotify");
+        return false;
+    }
+
+    try {
+        const response = await fetch(`${PLUGIN_API_BASE}/play/liked`, {
+            method: 'POST',
+            headers: getApiHeaders()
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+            let errorMsg = data.message || `Failed to play liked songs (HTTP ${response.status})`;
+            toastr.error(`Spotify Music: ${errorMsg}`);
+            if (data.needsLogin) await checkAuthStatus();
+            if (data.needsConfiguration) await loadCredentialsStatus();
+            return false;
+        }
+
+        console.log(`${LOG_PREFIX_FUNC} Successfully started playing liked songs: ${data.message}`);
+        return true;
+    } catch (error) {
+        console.error(`${LOG_PREFIX_FUNC} Network/other error during liked songs request:`, error);
+        toastr.error(`Spotify Music: ${error.message || 'Request failed'}`);
+        return false;
+    }
+}// API Calls to Server Plugin
 async function loadCredentialsStatus() {
     try {
         const response = await fetch(`${PLUGIN_API_BASE}/config`, { method: 'GET' });
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         const data = await response.json();
         updateCredentialsStatusUI(data);
+
+        // Display existing credentials in masked format if they exist
+        if (data.clientIdSet && data.clientId) {
+            $('#moodmusic-client-id').val(data.clientId);
+            $('#moodmusic-client-id').attr('placeholder', 'Client ID (saved)');
+        } else {
+            $('#moodmusic-client-id').val('');
+            $('#moodmusic-client-id').attr('placeholder', 'Spotify Client ID');
+        }
+
+        if (data.clientSecretSet && data.clientSecret) {
+            // Show masked version of client secret
+            $('#moodmusic-client-secret').val(data.clientSecret);
+            $('#moodmusic-client-secret').attr('placeholder', 'Client Secret (saved)');
+        } else {
+            $('#moodmusic-client-secret').val('');
+            $('#moodmusic-client-secret').attr('placeholder', 'Spotify Client Secret');
+        }
+
         console.log(`${LOG_PREFIX} Credential status loaded:`, data);
     } catch (error) {
         console.error(`${LOG_PREFIX} Failed to load credential status:`, error);
         updateCredentialsStatusUI({ clientIdSet: false, clientSecretSet: false });
-        callPopup("Failed to load MoodMusic credential status.", "error");
+        toastr.error("Spotify Music: Failed to load credential status");
     }
 }
 
@@ -126,7 +232,7 @@ async function saveSpotifyCredentials() {
     const clientSecret = $('#moodmusic-client-secret').val();
 
     if (!clientId || !clientSecret) {
-        callPopup("Client ID and Client Secret are required.", "error");
+        toastr.error("Spotify Music: Client ID and Client Secret are required");
         return;
     }
 
@@ -146,7 +252,7 @@ async function saveSpotifyCredentials() {
                 }
             } catch (e) {
                 if (response.status === 403) {
-                    errorText = 'Forbidden. CSRF token seems to be invalid. Please refresh the page.';
+                    errorText = 'Forbidden. CSRF token invalid. Please refresh the page and try again.';
                 }
             }
             throw new Error(errorText);
@@ -157,17 +263,62 @@ async function saveSpotifyCredentials() {
             throw new Error(data.message || 'Operation failed with an unspecified error.');
         }
 
-        callPopup("Spotify credentials saved. Any existing login was cleared.", "success");
-        console.log(`${LOG_PREFIX_FUNC} Credentials saved.`);
-        $('#moodmusic-client-secret').val('');
+        toastr.success("Spotify Music: Spotify credentials saved successfully");
+        console.log(`${LOG_PREFIX_FUNC} Credentials saved and will persist between sessions.`);
+        // Don't clear the fields - let loadCredentialsStatus show the saved values
         await loadCredentialsStatus();
         await checkAuthStatus();
     } catch (error) {
         console.error(`${LOG_PREFIX_FUNC} Error saving credentials:`, error);
-        callPopup(`Error saving credentials: ${error.message}`, "error");
+        toastr.error(`Spotify Music: Error saving credentials - ${error.message}`);
     }
 }
 
+async function clearSpotifyCredentials() {
+    const LOG_PREFIX_FUNC = `${LOG_PREFIX} [clearSpotifyCredentials]`;
+
+    if (!confirm('Are you sure you want to clear saved Spotify credentials? This will require you to re-enter them.')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${PLUGIN_API_BASE}/config`, {
+            method: 'DELETE',
+            headers: getApiHeaders(),
+        });
+
+        if (!response.ok) {
+            let errorText = `Server error: ${response.status} ${response.statusText}`;
+            try {
+                const errorJson = await response.json();
+                if (errorJson && errorJson.message) {
+                    errorText = errorJson.message;
+                }
+            } catch (e) {
+                // Fallback error message
+            }
+            throw new Error(errorText);
+        }
+
+        const data = await response.json();
+        if (!data.success) {
+            throw new Error(data.message || 'Operation failed with an unspecified error.');
+        }
+
+        toastr.success("Spotify Music: Spotify credentials cleared");
+        console.log(`${LOG_PREFIX_FUNC} Credentials cleared successfully.`);
+
+        // Clear the UI fields
+        $('#moodmusic-client-id').val('').attr('placeholder', 'Spotify Client ID');
+        $('#moodmusic-client-secret').val('').attr('placeholder', 'Spotify Client Secret');
+
+        await loadCredentialsStatus();
+        await checkAuthStatus();
+    } catch (error) {
+        console.error(`${LOG_PREFIX_FUNC} Error clearing credentials:`, error);
+        toastr.error(`Spotify Music: Error clearing credentials - ${error.message}`);
+    }
+}
 
 async function checkAuthStatus() {
     try {
@@ -184,7 +335,7 @@ async function checkAuthStatus() {
 
 async function triggerSpotifyLogin() {
     if (!areServerCredentialsSet) {
-        callPopup("Cannot login: Spotify credentials are not configured.", "error");
+        toastr.error("Spotify Music: Cannot login - Spotify credentials are not configured");
         return;
     }
     try {
@@ -203,7 +354,7 @@ async function triggerSpotifyLogin() {
         }, 1000);
     } catch (error) {
         console.error(`${LOG_PREFIX} Error in triggerSpotifyLogin:`, error);
-        callPopup(`Login error: ${error.message}`, "error");
+        toastr.error(`Spotify Music: Login failed - ${error.message}`);
     }
 }
 
@@ -258,18 +409,12 @@ async function pollPlaybackState() {
             stopPlaybackPolling();
             lastPlaybackStopTime = Date.now();
             await restoreOriginalPreset(); // Restore preset right away
-            // Trigger next analysis after a short delay
-            setTimeout(() => {
-                if (isExtensionActive && !isAnalysisInProgress && isAuthenticated) triggerMoodAnalysisAndPlay();
-            }, 500);
+            // Note: Automatic triggering now happens on character responses instead of inactivity
+            console.log(`${LOG_PREFIX} Target track ended. Auto-trigger will happen on next character response.`);
         } else if (!state.is_playing) { // Nothing is playing
             if (lastPlaybackStopTime === 0) lastPlaybackStopTime = Date.now();
-            const timeSinceStop = Date.now() - lastPlaybackStopTime;
-            if (timeSinceStop >= MOOD_ANALYSIS_TRIGGER_THRESHOLD_MS && !isAnalysisInProgress) {
-                 console.log(`${LOG_PREFIX} Inactivity threshold passed. Triggering mood analysis.`);
-                 lastPlaybackStopTime = Date.now(); // Reset timer
-                 triggerMoodAnalysisAndPlay();
-            }
+            // Note: Removed inactivity triggering - now relies on character response triggering
+            console.log(`${LOG_PREFIX} No music playing. Auto-trigger will happen on next character response.`);
         } else { // Unrelated music is playing
              lastPlaybackStopTime = Date.now(); // Keep pushing back the timer
         }
@@ -334,11 +479,11 @@ async function restoreOriginalPreset() {
         const restored = await setPresetViaUi(originalPresetName);
         if (!restored) {
              console.error(`${LOG_PREFIX} CRITICAL: FAILED TO RESTORE ORIGINAL PRESET "${originalPresetName}".`);
-             callPopup(`MoodMusic: CRITICAL! Failed to restore preset. Please check manually.`, "error");
+             toastr.error("Spotify Music: Failed to restore preset - please check manually");
         }
     } else if (currentPresetRestorationRequired && !originalPresetName) {
         console.error(`${LOG_PREFIX} Preset restoration required, but original preset name was not captured.`);
-        callPopup(`MoodMusic: Error! Switched to ${MUSIC_PRESET_NAME} but original preset was unknown. Please check preset settings.`, "warning");
+        toastr.warning("Spotify Music: Original preset unknown - please check preset settings");
     }
     // Reset flags regardless of outcome
     currentPresetRestorationRequired = false;
@@ -348,73 +493,110 @@ async function restoreOriginalPreset() {
 // --- AI Interaction ---
 async function getMusicSuggestionFromAI(chatHistorySnippet) {
     const LOG_PREFIX_FUNC = `${LOG_PREFIX} [getMusicSuggestionFromAI]`;
-    console.log(`${LOG_PREFIX_FUNC} Requesting music suggestion...`);
+    const modelMode = useMusicPreset ? 'Music.json preset' : 'current main model';
+    console.log(`${LOG_PREFIX_FUNC} Requesting music suggestion using ${modelMode}...`);
 
-    const apiType = $('#main_api').val();
-    if (!apiType?.length) {
-        callPopup("MoodMusic: Could not determine API type.", "error");
-        return null;
-    }
-
-    const switched = await setPresetViaUi(MUSIC_PRESET_NAME);
-    if (!switched) {
-        console.error(`${LOG_PREFIX_FUNC} Failed to switch to preset "${MUSIC_PRESET_NAME}". Skipping AI call.`);
-        return null;
-    }
-    currentPresetRestorationRequired = true;
-
-    try {
-        const chatCompletionApis = ['openai', 'anthropic'];
-        const textCompletionApis = ['textgenerationwebui', 'kobold', 'novel', 'koboldhorde'];
-        let aiResponseText = null;
-
-        if (chatCompletionApis.includes(apiType)) {
-            console.log(`${LOG_PREFIX_FUNC} Using 'generateQuietPrompt' for chat completion API: ${apiType}.`);
-            aiResponseText = await generateQuietPrompt(chatHistorySnippet, false, true, { source: 'moodmusic-chat' });
-        } else if (textCompletionApis.includes(apiType)) {
-            console.log(`${LOG_PREFIX_FUNC} Using 'generateRaw' for text completion API: ${apiType}.`);
-            const prompt = `Based on the following chat, suggest a song (title and artist) that fits the mood. Respond only with 'Title: <song title>' and on a new line 'Artist: <song artist>'.\n\nChat Excerpt:\n${chatHistorySnippet}\n\nTitle:\nArtist:`;
-            
-            aiResponseText = await generateRaw(
-                prompt,
-                null, // 2. api_override: null uses the UI's selected API
-                150,  // 3. tokenCount
-                null, null, null, null, null, null, null, null, null, null, // 4-13. various generation params
-                MUSIC_PRESET_NAME, // 14. gen_settings_preset_name
-                null, // 15. generate_settings_override
-                { source: 'moodmusic-text' } // 16. quiet_prompt_params
-            );
-        } else {
-            console.warn(`${LOG_PREFIX_FUNC} API type '${apiType}' not in explicit lists. Defaulting to generateQuietPrompt.`);
-            aiResponseText = await generateQuietPrompt(chatHistorySnippet, false, true, { source: 'moodmusic-unknown-api-fallback' });
+    if (useMusicPreset) {
+        // Use Music.json preset
+        const switched = await setPresetViaUi(MUSIC_PRESET_NAME);
+        if (!switched) {
+            console.error(`${LOG_PREFIX_FUNC} Failed to switch to preset "${MUSIC_PRESET_NAME}". Skipping AI call.`);
+            return null;
         }
+        currentPresetRestorationRequired = true;
 
-        if (!aiResponseText || typeof aiResponseText !== 'string' || aiResponseText.trim() === '') {
-            throw new Error("AI call returned an empty or invalid response.");
+        try {
+            console.log(`${LOG_PREFIX_FUNC} Triggering Music preset...`);
+            const aiResponseText = await generateQuietPrompt('', false, false, {
+                source: 'moodmusic-extension'
+            });
+
+            console.log(`${LOG_PREFIX_FUNC} Raw AI response:`, aiResponseText);
+
+            if (!aiResponseText || typeof aiResponseText !== 'string' || aiResponseText.trim() === '') {
+                throw new Error("AI call returned an empty or invalid response.");
+            }
+            return aiResponseText.trim();
+        } catch (error) {
+            console.error(`${LOG_PREFIX_FUNC} Error during AI music suggestion with Music preset:`, error);
+            toastr.error(`Spotify Music: AI suggestion failed - ${error.message}`);
+            return null;
         }
-        return aiResponseText.trim();
-    } catch (error) {
-        console.error(`${LOG_PREFIX_FUNC} Error during AI music suggestion:`, error);
-        callPopup(`MoodMusic: AI suggestion failed: ${error.message}`, "error");
-        return null;
+    } else {
+        // Use current main model with custom prompt
+        try {
+            console.log(`${LOG_PREFIX_FUNC} Using current main model with custom music analysis prompt...`);
+
+            const musicPrompt = `Based on the following conversation, suggest a single song that matches the current mood and atmosphere. Please respond in this exact format:
+
+Song: [Artist Name] - [Song Title]
+
+Recent conversation:
+${chatHistorySnippet}
+
+Choose a song that captures the emotional tone, energy level, and overall vibe of this conversation. Focus on the most recent messages to understand the current mood.`;
+
+            const aiResponseText = await generateQuietPrompt(musicPrompt, false, false, {
+                source: 'moodmusic-extension'
+            });
+
+            console.log(`${LOG_PREFIX_FUNC} Raw AI response:`, aiResponseText);
+
+            if (!aiResponseText || typeof aiResponseText !== 'string' || aiResponseText.trim() === '') {
+                throw new Error("AI call returned an empty or invalid response.");
+            }
+            return aiResponseText.trim();
+        } catch (error) {
+            console.error(`${LOG_PREFIX_FUNC} Error during AI music suggestion with current model:`, error);
+            toastr.error(`Spotify Music: AI suggestion failed - ${error.message}`);
+            return null;
+        }
     }
 }
 
 
 function parseMusicFromAiResponse(aiResponseText) {
-    if (!aiResponseText || typeof aiResponseText !== 'string') return null;
-    const titleMatch = aiResponseText.match(/Title:\s*(.*)/i);
-    const artistMatch = aiResponseText.match(/Artist:\s*(.*)/i);
-    const title = titleMatch ? titleMatch[1].trim() : null;
-    const artist = artistMatch ? artistMatch[1].trim() : null;
-    if (title) return { title, artist };
-    console.warn(`${LOG_PREFIX} Could not parse Title from AI response: "${aiResponseText}"`);
+    const LOG_PREFIX_FUNC = `${LOG_PREFIX} [parseMusicFromAiResponse]`;
+
+    if (!aiResponseText || typeof aiResponseText !== 'string') {
+        console.error(`${LOG_PREFIX_FUNC} Invalid AI response: empty or not a string`);
+        return null;
+    }
+
+    console.log(`${LOG_PREFIX_FUNC} Parsing AI response: "${aiResponseText}"`);
+
+    // Try multiple parsing patterns to be more flexible
+    let titleMatch = aiResponseText.match(/Title:\s*(.*?)(?:\n|$)/i);
+    let artistMatch = aiResponseText.match(/Artist:\s*(.*?)(?:\n|$)/i);
+
+    // Alternative patterns if the first ones don't work
+    if (!titleMatch) {
+        titleMatch = aiResponseText.match(/Song:\s*(.*?)(?:\n|$)/i) ||
+                    aiResponseText.match(/Track:\s*(.*?)(?:\n|$)/i) ||
+                    aiResponseText.match(/"([^"]+)"\s*by\s*/i);
+    }
+
+    if (!artistMatch && titleMatch) {
+        artistMatch = aiResponseText.match(/by\s+(.*?)(?:\n|$)/i);
+    }
+
+    const title = titleMatch ? titleMatch[1].trim().replace(/["""]/g, '') : null;
+    const artist = artistMatch ? artistMatch[1].trim().replace(/["""]/g, '') : null;
+
+    if (title) {
+        const result = { title, artist: artist || 'Unknown Artist' };
+        console.log(`${LOG_PREFIX_FUNC} Successfully parsed:`, result);
+        return result;
+    }
+
+    console.warn(`${LOG_PREFIX_FUNC} Could not parse song info from AI response: "${aiResponseText}"`);
+    toastr.warning("Spotify Music: Could not parse song from AI response");
     return null;
 }
 
-async function requestPlaySong(suggestion) {
+async function requestPlaySong(suggestion, isOriginalRequest = true) {
     const LOG_PREFIX_FUNC = `${LOG_PREFIX} [requestPlaySong]`;
-    if (!isAuthenticated) { callPopup("Cannot play: Not logged into Spotify.", "error"); return false; }
+    if (!isAuthenticated) { toastr.error("MoodMusic: Cannot play - not logged into Spotify"); return false; }
     if (!suggestion || !suggestion.title) { console.error(`${LOG_PREFIX_FUNC} Invalid suggestion.`); return false; }
 
     try {
@@ -427,31 +609,69 @@ async function requestPlaySong(suggestion) {
         const data = await response.json();
         if (!response.ok) {
             let errorMsg = data.message || `Play request failed (HTTP ${response.status})`;
-            callPopup(`MoodMusic Error: ${errorMsg}`, 'error');
+
+            // Check if song wasn't found and we should use liked songs fallback
+            if (isOriginalRequest && useLikedSongsFallback && (
+                data.message?.includes('not found') ||
+                data.message?.includes('No tracks found') ||
+                data.message?.includes('Could not find') ||
+                response.status === 404
+            )) {
+                console.log(`${LOG_PREFIX_FUNC} Original song not found, trying Liked Songs fallback`);
+                toastr.warning(`MoodMusic: "${suggestion.artist} - ${suggestion.title}" not found, playing from your Liked Songs`);
+
+                return await requestPlayLikedSongs();
+            }
+
+            toastr.error(`MoodMusic: ${errorMsg}`);
             if (data.needsLogin) await checkAuthStatus();
             if (data.needsConfiguration) await loadCredentialsStatus();
             return false;
         }
 
         console.log(`${LOG_PREFIX_FUNC} Play request successful: ${data.message}`);
+
         if (data.success && data.trackUri) startPlaybackPolling(data.trackUri);
         return true;
     } catch (error) {
         console.error(`${LOG_PREFIX_FUNC} Network/other error during play request:`, error);
-        callPopup(`MoodMusic Error: ${error.message || 'Request failed'}`, 'error');
+        toastr.error(`MoodMusic: ${error.message || 'Request failed'}`);
         return false;
     }
 }
 
 async function triggerMoodAnalysisAndPlay() {
     const LOG_PREFIX_FUNC = `${LOG_PREFIX} [triggerMoodAnalysisAndPlay]`;
+
+    // Check basic conditions
     if (isAnalysisInProgress || !isExtensionActive || !isAuthenticated) {
         console.log(`${LOG_PREFIX_FUNC} Aborted (Analysis running: ${isAnalysisInProgress}, Active: ${isExtensionActive}, Auth: ${isAuthenticated})`);
-        return;
+        return true; // Return true to avoid error popup for expected conditions
     }
 
-    console.log(`${LOG_PREFIX_FUNC} Starting mood analysis sequence...`);
+    // Prevent rapid-fire analyses
+    const now = Date.now();
+    if (now - lastAnalysisTime < MIN_ANALYSIS_INTERVAL_MS) {
+        console.log(`${LOG_PREFIX_FUNC} Aborted - too soon since last analysis (${now - lastAnalysisTime}ms < ${MIN_ANALYSIS_INTERVAL_MS}ms)`);
+        return true; // Return true to avoid error popup for expected throttling
+    }
+
+    // Generate unique request ID
+    const requestId = ++requestCounter;
+    const updatedLogPrefix = `${LOG_PREFIX} [triggerMoodAnalysisAndPlay-${requestId}]`;
+
+    console.log(`${updatedLogPrefix} Starting mood analysis sequence...`);
+
+    // Atomic check for exclusive access
+    if (isAnalysisInProgress || currentRequestId !== null) {
+        console.log(`${updatedLogPrefix} BLOCKED - Analysis already in progress (flag: ${isAnalysisInProgress}, currentRequest: ${currentRequestId})`);
+        return true; // Return true to avoid error popup for expected blocking
+    }
+
+    // Set both flags atomically
     isAnalysisInProgress = true;
+    currentRequestId = requestId;
+    lastAnalysisTime = now;
     currentPresetRestorationRequired = false;
     originalPresetName = null;
 
@@ -459,11 +679,31 @@ async function triggerMoodAnalysisAndPlay() {
         const context = getContext();
         if (!context?.chat?.length) {
             console.warn(`${LOG_PREFIX_FUNC} No chat history available for analysis.`);
-            return;
+            toastr.warning("MoodMusic: No chat history available for mood analysis");
+            return false; // Return false for genuine error condition
         }
 
+        console.log(`${LOG_PREFIX_FUNC} Analyzing last ${HISTORY_FOR_MOOD_ANALYSIS} messages from chat...`);
         const history = context.chat.slice(-HISTORY_FOR_MOOD_ANALYSIS);
-        const chatHistorySnippet = history.map(msg => `${msg.is_user ? 'User' : 'Character'}: ${msg.mes}`).join('\n');
+
+        // Filter out any potential duplicates and format properly
+        const processedHistory = [];
+        const seenMessages = new Set();
+
+        for (const msg of history) {
+            const messageKey = `${msg.is_user ? 'User' : 'Character'}:${msg.mes?.substring(0, 100)}`;
+            if (!seenMessages.has(messageKey) && msg.mes?.trim()) {
+                seenMessages.add(messageKey);
+                processedHistory.push(msg);
+            }
+        }
+
+        const chatHistorySnippet = processedHistory.map(msg =>
+            `${msg.is_user ? 'User' : 'Character'}: ${msg.mes.trim()}`
+        ).join('\n\n'); // Use double newlines for better separation
+
+        console.log(`${LOG_PREFIX_FUNC} Chat snippet (${processedHistory.length} messages, ${chatHistorySnippet.length} characters):`);
+        console.log(`${LOG_PREFIX_FUNC} History preview: ${chatHistorySnippet.substring(0, 300)}...`);
 
         originalPresetName = getCurrentPresetNameFromUi();
         if (!originalPresetName) {
@@ -472,20 +712,230 @@ async function triggerMoodAnalysisAndPlay() {
             console.log(`${LOG_PREFIX_FUNC} Stored original preset: ${originalPresetName}`);
         }
 
+        console.log(`${LOG_PREFIX_FUNC} Calling AI for music suggestion...`);
         const aiResponseText = await getMusicSuggestionFromAI(chatHistorySnippet);
+
         if (aiResponseText) {
+            console.log(`${LOG_PREFIX_FUNC} AI responded, parsing suggestion...`);
             const suggestion = parseMusicFromAiResponse(aiResponseText);
-            if (suggestion) await requestPlaySong(suggestion);
+            if (suggestion) {
+                console.log(`${LOG_PREFIX_FUNC} Successfully parsed suggestion, requesting play:`, suggestion);
+                await requestPlaySong(suggestion, true); // This is an original AI suggestion
+                return true; // Success case
+            } else {
+                console.error(`${LOG_PREFIX_FUNC} Failed to parse music suggestion from AI response.`);
+                toastr.error("MoodMusic: Could not understand the AI's music suggestion");
+                return false;
+            }
         } else {
             console.error(`${LOG_PREFIX_FUNC} Failed to get a valid suggestion from AI.`);
+            toastr.error("MoodMusic: AI did not provide a music suggestion");
+            return false;
         }
     } catch (error) {
         console.error(`${LOG_PREFIX_FUNC} UNEXPECTED ERROR in analysis sequence:`, error);
+        toastr.error(`MoodMusic: Unexpected error - ${error.message}`);
+        return false;
     } finally {
         await restoreOriginalPreset();
         isAnalysisInProgress = false;
-        console.log(`${LOG_PREFIX_FUNC} Mood analysis process finished.`);
+        const finishedRequestId = currentRequestId;
+        currentRequestId = null; // Release the request lock
+        console.log(`${LOG_PREFIX} [triggerMoodAnalysisAndPlay-${finishedRequestId}] Mood analysis process finished and lock released.`);
     }
+}
+
+// Manual trigger function for the "Choose Song" button
+async function manualTriggerMusicAnalysis() {
+    console.log(`${LOG_PREFIX} Manual music analysis triggered by user`);
+
+    if (!isExtensionActive) {
+        toastr.info("MoodMusic: Extension is paused - use the Resume button in settings to enable");
+        return;
+    }
+
+    if (!isAuthenticated) {
+        toastr.error("MoodMusic: Please log in to Spotify first");
+        return;
+    }
+
+    if (isAnalysisInProgress || currentRequestId !== null) {
+        toastr.info("MoodMusic: Analysis already in progress, please wait");
+        return;
+    }
+
+    // Add a slight delay to ensure UI responsiveness
+    setTimeout(async () => {
+        const success = await triggerMoodAnalysisAndPlay();
+        if (!success) {
+            toastr.warning("MoodMusic: Could not analyze mood at this time");
+        }
+    }, 100);
+}
+
+// Add the manual trigger button to the UI
+function addManualTriggerButton() {
+    // Remove existing button if it exists
+    $('#moodmusic-manual-trigger').remove();
+
+    // Create the button
+    const button = $(`
+        <div id="moodmusic-manual-trigger" class="menu_button" style="
+            margin: 5px auto;
+            display: block;
+            width: fit-content;
+            background-color: #1db954;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 13px;
+            cursor: pointer;
+        ">
+            <i class="fa-solid fa-music"></i> Choose Song
+        </div>
+    `);
+
+    // Add click handler
+    button.on('click', manualTriggerMusicAnalysis);
+
+    // Insert above the send form
+    $('#send_form').prepend(button);
+
+    console.log(`${LOG_PREFIX} Manual trigger button added to UI`);
+}
+
+// Unified handler for character messages and swipes
+async function handleCharacterEvent(messageId, type, eventSourceType) {
+    const currentTime = Date.now();
+
+    // Prevent rapid-fire events (within 1 second)
+    if (currentTime - lastEventTimestamp < 1000) {
+        return;
+    }
+
+    // Prevent duplicate processing of the same message
+    if (messageId === lastProcessedMessageId) {
+        return;
+    }
+
+    // Check minimum interval since last analysis
+    if (currentTime - lastAnalysisTime < MIN_ANALYSIS_INTERVAL_MS) {
+        return;
+    }
+
+    // Check if we should trigger
+    if (!isExtensionActive || !isAuthenticated || isAnalysisInProgress) {
+        return;
+    }
+
+    lastEventTimestamp = currentTime;
+
+    // Clear any pending timeout to prevent multiple triggers
+    if (analysisTimeout) {
+        clearTimeout(analysisTimeout);
+        analysisTimeout = null;
+    }
+
+    // Add delay and ensure only one analysis runs
+    analysisTimeout = setTimeout(async () => {
+        analysisTimeout = null;
+        const currentTimeAtTimeout = Date.now();
+        const timeSinceLastAnalysis = currentTimeAtTimeout - lastAnalysisTime;
+
+        if (!isAnalysisInProgress &&
+            currentRequestId === null &&
+            isExtensionActive &&
+            isAuthenticated &&
+            timeSinceLastAnalysis >= MIN_ANALYSIS_INTERVAL_MS) {
+
+            lastProcessedMessageId = messageId;
+
+            // Wait for AI system to be ready
+            setTimeout(async () => {
+                const context = getContext();
+                if (context.generationInProgress) {
+                    setTimeout(() => triggerMoodAnalysisAndPlay(), 3000);
+                } else {
+                    await triggerMoodAnalysisAndPlay();
+                }
+            }, 2000);
+        } else {
+            console.log(`${LOG_EVENT_PREFIX} Conditions not met at timeout, skipping`);
+        }
+    }, 3000); // Increased delay to allow main AI generation to fully complete
+}
+
+// Special handler for swipes that's more lenient than regular character events
+async function handleSwipeEvent(messageId) {
+    const LOG_EVENT_PREFIX = `${LOG_PREFIX} [AUTO-TRIGGER-SWIPE]`;
+    const currentTime = Date.now();
+
+    console.log(`${LOG_EVENT_PREFIX} Swipe event received for message ID: ${messageId}`);
+    console.log(`${LOG_EVENT_PREFIX} State check - Active: ${isExtensionActive}, Auth: ${isAuthenticated}, InProgress: ${isAnalysisInProgress}`);
+
+    // For swipes, we're more lenient - only check basic conditions
+    if (!isExtensionActive || !isAuthenticated || isAnalysisInProgress) {
+        return;
+    }
+
+    // For swipes, use a shorter minimum interval (1 second instead of 3)
+    if (currentTime - lastAnalysisTime < 1000) {
+        return;
+    }
+
+    // Clear any pending timeout to prevent multiple triggers
+    if (analysisTimeout) {
+        clearTimeout(analysisTimeout);
+        analysisTimeout = null;
+    }
+
+    // Shorter delay for swipes since they're user-initiated
+    analysisTimeout = setTimeout(async () => {
+        analysisTimeout = null;
+
+        if (!isAnalysisInProgress && currentRequestId === null && isExtensionActive && isAuthenticated) {
+            lastProcessedMessageId = messageId;
+            await triggerMoodAnalysisAndPlay();
+        } else {
+            console.log(`${LOG_EVENT_PREFIX} Swipe conditions not met at timeout, skipping`);
+        }
+    }, 800); // Shorter delay for swipes
+}
+
+function setupAutoTrigger() {
+    const LOG_PREFIX_FUNC = `${LOG_PREFIX} [setupAutoTrigger]`;
+
+    if (isAutoTriggerSetup) {
+        console.log(`${LOG_PREFIX_FUNC} Auto-trigger already set up, skipping...`);
+        return;
+    }
+
+    console.log(`${LOG_PREFIX_FUNC} Setting up automatic mood analysis on generation completion and swipes...`);
+
+    // Handle when AI generation ends (including streaming completion)
+    eventSource.makeLast(event_types.GENERATION_ENDED, async () => {
+        // Get the latest message ID from chat
+        const context = getContext();
+        const chat = context.chat;
+        if (chat && chat.length > 0) {
+            const lastMessageId = chat.length - 1;
+            const lastMessage = chat[lastMessageId];
+
+            // Only trigger for character messages, not user messages
+            if (lastMessage && !lastMessage.is_user) {
+                await handleCharacterEvent(lastMessageId, 'generation_ended', 'GENERATION_ENDED');
+            }
+        }
+    });
+
+    // Handle when a message is swiped/regenerated
+    eventSource.on(event_types.MESSAGE_SWIPED, async (messageId) => {
+        await handleSwipeEvent(messageId);
+    });
+
+    isAutoTriggerSetup = true;
+    console.log(`${LOG_PREFIX_FUNC} Auto-trigger setup complete. Extension will analyze mood when AI generation completes (including streaming) and on swipes.`);
 }
 
 function toggleExtensionActiveState() {
@@ -515,11 +965,23 @@ async function initializeExtension() {
         $("#extensions_settings").append(settingsHtml);
         $('#extensions_settings')
             .on('click', '#moodmusic-save-creds-button', saveSpotifyCredentials)
+            .on('click', '#moodmusic-clear-creds-button', clearSpotifyCredentials)
             .on('click', '#moodmusic-login-button', triggerSpotifyLogin)
-            .on('click', '#moodmusic-toggle-button', toggleExtensionActiveState);
+            .on('click', '#moodmusic-toggle-button', toggleExtensionActiveState)
+            .on('click', '#moodmusic-switch-model-button', switchModelMode)
+            .on('click', '#moodmusic-test-liked-button', testLikedSongs)
+            .on('change', '#moodmusic-use-liked-fallback', saveLikedSongsSettings);
 
         updateToggleButtonUI();
+        updateModelStatusUI();
+        loadLikedSongsSettings();
         findAndStorePresetDropdown();
+
+        // Set up automatic mood analysis when character responds
+        setupAutoTrigger();
+
+        // Add the manual trigger button
+        addManualTriggerButton();
 
         await loadCredentialsStatus();
         await checkAuthStatus();

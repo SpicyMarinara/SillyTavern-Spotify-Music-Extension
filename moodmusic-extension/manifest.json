@@ -1,11 +1,11 @@
 {
-    "display_name": "Mood Music",
+    "display_name": "Spotify Music",
     "loading_order": 999,
     "requires": [],
     "optional": [],
     "js": "index.js",
     "css": "style.css",
-    "author": "@NemoVonNirgend",
-    "version": "2.2",
-    "homePage": "https://github.com/NemoVonNirgend/SIllytavern-Moodmusic-Ext"
+    "author": "@SpicyMarinara",
+    "version": "3.0",
+    "homePage": "https://github.com/SpicyMarinara/SillyTavern-Spotify-Music-Extension"
 }

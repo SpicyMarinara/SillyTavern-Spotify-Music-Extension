@@ -1,5 +1,169 @@
-# SIllytavern-Moodmusic-Ext
-Just the extension should work for github insulation and updates.
+# SillyTavern Spotify Music Extension
 
-For full instlation instructions refer to here.
-https://github.com/NemoVonNirgend/SIllytavern-Moodmusic-extension
+An intelligent Spotify integration extension for SillyTavern that automatically plays music based on chat mood analysis using AI.
+
+## Features
+
+- **🤖 Automatic Mood Analysis**: AI analyzes character messages and conversation mood to suggest appropriate music
+- **🔄 Model Switching**: Choose between dedicated Music.json preset or your current AI model for suggestions
+- **🎵 Intelligent Fallback System**: Falls back to your Spotify Liked Songs when AI suggestions fail
+- **🔍 Advanced Search Algorithm**: Multi-tier search strategy for improved song discovery success rates
+- **🎯 Manual Controls**: Test and trigger music manually when needed
+- **🔐 Secure Authentication**: OAuth-based Spotify integration with encrypted credential storage
+
+## Version 3.0 Enhancements
+
+- Complete automatic triggering system
+- Smart model switching between Music preset and current model
+- Dynamic Liked Songs fallback system (replaces static fallback)
+- Multi-strategy search algorithm for better song matching
+- Enhanced error handling and user feedback
+- Improved UI with better status indicators
+- Full CSRF token integration for security
+
+## Installation
+
+### Prerequisites
+1. **Spotify Premium Account** (required for playback control)
+2. **Spotify Developer App**: Create one at [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
+3. **SillyTavern** with plugin support enabled
+
+### Setup Steps
+
+1. **Download Extension**:
+   - Download this extension to your SillyTavern extensions directory:
+   - `SillyTavern/data/default-user/extensions/SIllytavern-Moodmusic-Ext/`
+
+2. **Install Server Plugin**:
+   - Copy the `plugins/moodmusic` folder to your SillyTavern plugins directory:
+   - `SillyTavern/plugins/moodmusic/`
+
+3. **Configure Spotify App**:
+   - In your Spotify app settings, add this redirect URI:
+   - `http://localhost:8000/api/plugins/moodmusic/auth/callback`
+   - (Adjust port if your SillyTavern runs on a different port)
+
+4. **Music.json Preset Setup** (Optional but Recommended):
+   - Create a dedicated preset named "Music.json" for optimal music suggestions
+   - This preset should be optimized for mood analysis and music recommendations
+   - The extension can use this preset or fall back to your current model
+
+5. **Extension Setup**:
+   - Restart SillyTavern
+   - Go to Extensions → Spotify Music
+   - Enter your Spotify Client ID and Client Secret
+   - Click "Save Credentials" then "Login to Spotify"
+   - Complete the OAuth flow in the popup window
+
+## Usage
+
+### Automatic Mode (Default)
+The extension automatically triggers when:
+- Characters send messages (CHARACTER_MESSAGE_RENDERED)
+- You swipe between AI responses (MESSAGE_SWIPED)
+
+### Model Selection
+- **Music Preset Mode**: Uses dedicated Music.json preset for mood analysis
+- **Current Model Mode**: Uses your currently selected AI model
+
+### Manual Controls
+- **Manual Trigger**: Force mood analysis and song selection
+- **Test Liked Songs**: Verify your Spotify connection and fallback system
+- **Enable Liked Songs Fallback**: Toggle intelligent fallback system
+
+### Search Algorithm
+The extension uses a 4-tier search strategy:
+1. **Exact Match**: Full song title and artist
+2. **Partial Match**: Song title with first artist word
+3. **Song Only**: Just the song title
+4. **Liked Songs Fallback**: Plays from your saved collection
+
+## Configuration Options
+
+### Spotify Settings
+- Client ID and Secret from your Spotify Developer app
+- Automatic credential validation and status display
+- Secure OAuth flow with proper scopes
+
+### Behavior Settings
+- **Use Liked Songs Fallback**: Enable/disable intelligent fallback
+- **Model Selection**: Choose between Music preset or current model
+- **Manual Trigger**: Override automatic behavior when needed
+
+### Music.json Preset Configuration
+When using Music Preset Mode, the extension looks for a preset named "Music.json" that should be optimized for:
+- Mood analysis and emotional context recognition
+- Concise music recommendations in the format: "Song Title by Artist Name"
+- Fast response times for seamless music integration
+- Understanding of various music genres and emotional associations
+
+## Required Spotify Scopes
+
+The extension requests these Spotify permissions:
+- `user-read-playback-state`: Check current playback status
+- `user-modify-playback-state`: Control music playback
+- `user-read-currently-playing`: Get current track info
+- `user-library-read`: Access your Liked Songs for fallback
+
+## Troubleshooting
+
+### Common Issues
+
+**"Cannot play - not logged into Spotify"**
+- Click "Login to Spotify" and complete OAuth flow
+- Check that popup windows aren't blocked
+
+**"AI suggestion failed"**
+- Verify your AI model is responding
+- Check that the Music.json preset exists (if using Music mode)
+- The system will automatically fall back to Liked Songs
+
+**"Failed to play song"**
+- Ensure Spotify is open and you have Premium
+- Check that you have an active device in Spotify
+- Verify the suggested song exists in Spotify's catalog
+
+**Search fails frequently**
+- Enable "Use Liked Songs Fallback" for better reliability
+- The multi-tier algorithm should improve success rates
+- Check Spotify connectivity and Premium status
+
+### Debug Information
+The extension provides detailed console logging with prefix `[Spotify Music]` for troubleshooting.
+
+## Technical Details
+
+### Architecture
+- **Frontend**: SillyTavern extension with event-driven automation
+- **Backend**: Express.js plugin with Spotify Web API integration
+- **Authentication**: OAuth 2.0 with secure credential storage
+- **Search**: Multi-strategy algorithm with intelligent fallbacks
+
+### Event Integration
+- Hooks into SillyTavern's message rendering system
+- Respects user preferences and current chat context
+- Automatic model switching based on configuration
+
+### Security Features
+- CSRF token validation for all requests
+- Encrypted credential storage
+- Proper OAuth scope management
+- No sensitive data in client-side code
+
+## Credits
+
+Originally created by **NemoVonNirgend** as the MoodMusic extension. This version has been enhanced and rebranded as **Spotify Music** with comprehensive improvements for production use.
+
+**Original Creator**: NemoVonNirgend  
+**Original Repository**: https://github.com/NemoVonNirgend/SIllytavern-Moodmusic-extension  
+**Enhanced by**: @SpicyMarinara  
+**This Repository**: https://github.com/SpicyMarinara/SillyTavern-Spotify-Music-Extension  
+**Version**: 3.0
+
+## License
+
+This extension is open source. Please check the LICENSE file for details.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit issues, feature requests, or pull requests to improve the extension.
