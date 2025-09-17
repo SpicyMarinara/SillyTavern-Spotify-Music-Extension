@@ -32,7 +32,7 @@ An intelligent Spotify integration extension for SillyTavern that automatically 
 
 1. **Download Extension**:
    - Download this extension to your SillyTavern extensions directory:
-   - `SillyTavern/data/default-user/extensions/SIllytavern-Moodmusic-Ext/`
+   - `SillyTavern/data/default-user/extensions/SillyTavern-Moodmusic-Ext/`
 
 2. **Install Server Plugin**:
    - Copy the `plugins/moodmusic` folder to your SillyTavern plugins directory:
