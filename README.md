@@ -43,11 +43,12 @@ An intelligent Spotify integration extension for SillyTavern that automatically 
    - `http://127.0.0.1:8000/api/plugins/moodmusic/auth/callback`
    - (Adjust port if your SillyTavern runs on a different port)
 
-5. **Music.json Preset Setup** (Optional but Recommended):
-   - Create a dedicated preset named "Music.json" for optimal music suggestions
-   - This preset should be optimized for mood analysis and music recommendations
+5. **Music.json Preset Setup** (Required for Music Preset Mode):
+   - Download the `Music.json` file from this GitHub repository
+   - In SillyTavern, go to **AI Response Configuration** → **Manage Presets**
+   - Click **Import** and select the downloaded `Music.json` file
+   - This preset is specifically optimized for mood analysis and music recommendations
    - The extension can use this preset or fall back to your current model
-
 6. **Extension Setup**:
    - Restart SillyTavern
    - Go to Extensions → Spotify Music
@@ -91,12 +92,14 @@ The extension uses a 4-tier search strategy:
 - **Manual Trigger**: Override automatic behavior when needed
 
 ### Music.json Preset Configuration
-When using Music Preset Mode, the extension looks for a preset named "Music.json" that should be optimized for:
-- Mood analysis and emotional context recognition
-- Concise music recommendations in the format: "Song Title by Artist Name"
-- Fast response times for seamless music integration
-- Understanding of various music genres and emotional associations
-
+When using Music Preset Mode, the extension looks for a preset named "Music.json". **Use the preset included in this repository:**
+- Download `Music.json` from this GitHub repository
+- Import it into SillyTavern via AI Response Configuration → Manage Presets
+- The included preset is pre-optimized for:
+  - Mood analysis and emotional context recognition
+  - Concise music recommendations in the format: "Song Title by Artist Name"
+  - Fast response times for seamless music integration
+  - Understanding of various music genres and emotional associations
 ## Required Spotify Scopes
 
 The extension requests these Spotify permissions:
@@ -120,9 +123,9 @@ The extension requests these Spotify permissions:
 
 **"AI suggestion failed"**
 - Verify your AI model is responding
-- Check that the Music.json preset exists (if using Music mode)
+- Check that you have imported the Music.json preset from this GitHub repository
+- Verify the preset is named exactly "Music.json" in SillyTavern
 - The system will automatically fall back to Liked Songs
-
 **"Failed to play song"**
 - Ensure Spotify is open and you have Premium
 - Check that you have an active device in Spotify
