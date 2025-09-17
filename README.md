@@ -40,7 +40,7 @@ An intelligent Spotify integration extension for SillyTavern that automatically 
 
 3. **Configure Spotify App**:
    - In your Spotify app settings, add this redirect URI:
-   - `http://localhost:8000/api/plugins/moodmusic/auth/callback`
+   - `http://127.0.0.1:8000/api/plugins/moodmusic/auth/callback`
    - (Adjust port if your SillyTavern runs on a different port)
 
 4. **Music.json Preset Setup** (Optional but Recommended):
