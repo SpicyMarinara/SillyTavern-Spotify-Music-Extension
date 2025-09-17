@@ -27,7 +27,7 @@ An intelligent Spotify integration extension for SillyTavern that automatically 
 1. **Spotify Premium Account** (required for playback control)
 2. **Spotify Developer App**: Create one at [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
 3. **SillyTavern** with plugin support enabled
-
+4. **Server Plugins Enabled**: Set `enableServerPlugins: true` in your SillyTavern `config.yaml`
 ### Setup Steps
 
 1. **Download Extension**:
@@ -43,12 +43,12 @@ An intelligent Spotify integration extension for SillyTavern that automatically 
    - `http://127.0.0.1:8000/api/plugins/moodmusic/auth/callback`
    - (Adjust port if your SillyTavern runs on a different port)
 
-4. **Music.json Preset Setup** (Optional but Recommended):
+5. **Music.json Preset Setup** (Optional but Recommended):
    - Create a dedicated preset named "Music.json" for optimal music suggestions
    - This preset should be optimized for mood analysis and music recommendations
    - The extension can use this preset or fall back to your current model
 
-5. **Extension Setup**:
+6. **Extension Setup**:
    - Restart SillyTavern
    - Go to Extensions → Spotify Music
    - Enter your Spotify Client ID and Client Secret
@@ -109,6 +109,11 @@ The extension requests these Spotify permissions:
 
 ### Common Issues
 
+
+**"Extension initialization failed" or "INIT FAILED"**
+- Ensure `enableServerPlugins: true` is set in your SillyTavern `config.yaml`
+- Restart SillyTavern after making config changes
+- Check that the server plugin files are in the correct `plugins/moodmusic/` directory
 **"Cannot play - not logged into Spotify"**
 - Click "Login to Spotify" and complete OAuth flow
 - Check that popup windows aren't blocked
