@@ -1,5 +1,7 @@
 # SillyTavern Spotify Music Extension
 
+![gif](https://i.imgur.com/1bWVr7F.gif)
+
 An intelligent Spotify integration extension for SillyTavern that automatically plays music based on chat mood analysis using AI.
 
 ## Features
@@ -28,6 +30,9 @@ An intelligent Spotify integration extension for SillyTavern that automatically 
 2. **Spotify Developer App**: Create one at [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
 3. **SillyTavern** with plugin support enabled
 4. **Server Plugins Enabled**: Set `enableServerPlugins: true` in your SillyTavern `config.yaml`
+
+![png](https://i.imgur.com/rmySG4N.png)
+
 ### Setup Steps
 
 1. **Download Extension**:
@@ -39,22 +44,40 @@ An intelligent Spotify integration extension for SillyTavern that automatically 
    - `SillyTavern/plugins/moodmusic/`
 
 3. **Configure Spotify App**:
+   - Go to https://developer.spotify.com/dashboard
+   - Log in with your account
+   - Create App
+   - Fill in all the details, like in the screenshot below
    - In your Spotify app settings, add this redirect URI:
    - `http://127.0.0.1:8000/api/plugins/moodmusic/auth/callback`
    - (Adjust port if your SillyTavern runs on a different port)
+  
+![png](https://i.imgur.com/gsI9uPt.png)
 
-5. **Music.json Preset Setup** (Required for Music Preset Mode):
+4. **Copy Spotify Secrets**:
+   - Go to your newly created app.
+   - Copy and save Client ID and Client secret from Basic Information
+
+![png](https://i.imgur.com/iuBm3t5.png)
+
+7. **Music.json Preset Setup** (Required for Music Preset Mode):
    - Download the `Music.json` file from this GitHub repository
    - In SillyTavern, go to **AI Response Configuration** → **Manage Presets**
    - Click **Import** and select the downloaded `Music.json` file
    - This preset is specifically optimized for mood analysis and music recommendations
-   - The extension can use this preset or fall back to your current model
-6. **Extension Setup**:
+   - Select the model to use with the preset
+
+![png](https://i.imgur.com/saQjWXc.png)
+
+8. **Extension Setup**:
    - Restart SillyTavern
    - Go to Extensions → Spotify Music
    - Enter your Spotify Client ID and Client Secret
    - Click "Save Credentials" then "Login to Spotify"
    - Complete the OAuth flow in the popup window
+   - Enjoy!
+
+![png](https://i.imgur.com/6UTzqmJ.png)
 
 ## Usage
 
@@ -175,3 +198,7 @@ This extension is open source. Please check the LICENSE file for details.
 ## Contributing
 
 Contributions are welcome! Please feel free to submit issues, feature requests, or pull requests to improve the extension.
+
+## Contact
+
+Discord: `marinara_spaghetti`
