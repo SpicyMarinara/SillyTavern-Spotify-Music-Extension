@@ -66,7 +66,7 @@ An intelligent Spotify integration extension for SillyTavern that automatically 
    ```
    *(Change `8000` to your SillyTavern port if different)*
 
-![png](https://i.imgur.com/gsI9uPt.png)
+![png](https://i.imgur.com/7uyAbQ3.png)
 
 #### 🔑 **Step 4: Get Spotify Credentials**
 1. **Copy Credentials**: From your Spotify app's "Basic Information" section:
