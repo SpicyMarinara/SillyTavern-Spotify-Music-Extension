@@ -4,7 +4,7 @@ import { getContext } from '../../../extensions.js';
 import { eventSource, event_types, generateQuietPrompt, generateRaw, token } from '../../../../script.js';
 
 const extensionName = "SillyTavern-Spotify-Music-Extension";
-const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
+const extensionFolderPath = `scripts/extensions/${extensionName}`;
 const PLUGIN_API_BASE = '/api/plugins/spotify-music';
 const LOG_PREFIX = "[Spotify Music]";
 
@@ -37,6 +37,12 @@ let isAutoTriggerSetup = false; // Prevent duplicate event listener setup
 let lastEventTimestamp = 0; // Track last event to prevent rapid-fire events
 let currentRequestId = null; // Track the current request to prevent overlaps
 let requestCounter = 0; // Counter for unique request IDs
+let lastAuthSkipToastAt = 0; // Throttle auth-missing toast
+
+// --- Global bootstrap guards (prevent duplicate init if loaded twice) ---
+// Use window-scoped flags so separate script instances share state
+const BOOTSTRAP_FLAG = '__SPOTIFY_MUSIC_BOOTSTRAPPED__';
+const SETTINGS_WRAPPER_SELECTOR = '#extensions_settings .moodmusic-settings';
 
 // Custom toastr notification functions with auto-dismiss
 function showSuccessToast(message, timeout = 4000) {
@@ -669,7 +675,7 @@ function parseMusicFromAiResponse(aiResponseText) {
 
 async function requestPlaySong(suggestion, isOriginalRequest = true) {
     const LOG_PREFIX_FUNC = `${LOG_PREFIX} [requestPlaySong]`;
-    if (!isAuthenticated) { toastr.error("MoodMusic: Cannot play - not logged into Spotify"); return false; }
+    if (!isAuthenticated) { toastr.error("Spotify Music: Cannot play - not logged into Spotify"); return false; }
     if (!suggestion || !suggestion.title) { console.error(`${LOG_PREFIX_FUNC} Invalid suggestion.`); return false; }
 
     try {
@@ -696,7 +702,7 @@ async function requestPlaySong(suggestion, isOriginalRequest = true) {
                 return await requestPlayLikedSongs();
             }
 
-            toastr.error(`MoodMusic: ${errorMsg}`);
+            toastr.error(`Spotify Music: ${errorMsg}`);
             if (data.needsLogin) await checkAuthStatus();
             if (data.needsConfiguration) await loadCredentialsStatus();
             return false;
@@ -708,7 +714,7 @@ async function requestPlaySong(suggestion, isOriginalRequest = true) {
         return true;
     } catch (error) {
         console.error(`${LOG_PREFIX_FUNC} Network/other error during play request:`, error);
-        toastr.error(`MoodMusic: ${error.message || 'Request failed'}`);
+    toastr.error(`Spotify Music: ${error.message || 'Request failed'}`);
         return false;
     }
 }
@@ -752,7 +758,7 @@ async function triggerMoodAnalysisAndPlay() {
         const context = getContext();
         if (!context?.chat?.length) {
             console.warn(`${LOG_PREFIX_FUNC} No chat history available for analysis.`);
-            toastr.warning("MoodMusic: No chat history available for mood analysis");
+            toastr.warning("Spotify Music: No chat history available for mood analysis");
             return false; // Return false for genuine error condition
         }
 
@@ -790,17 +796,17 @@ async function triggerMoodAnalysisAndPlay() {
                 return true; // Success case
             } else {
                 console.error(`${LOG_PREFIX_FUNC} Failed to parse music suggestion from AI response.`);
-                showErrorToast("MoodMusic: Could not understand the AI's music suggestion");
+                showErrorToast("Spotify Music: Could not understand the AI's music suggestion");
                 return false;
             }
         } else {
             console.error(`${LOG_PREFIX_FUNC} Failed to get a valid suggestion from AI.`);
-            showErrorToast("MoodMusic: AI did not provide a music suggestion");
+            showErrorToast("Spotify Music: AI did not provide a music suggestion");
             return false;
         }
     } catch (error) {
         console.error(`${LOG_PREFIX_FUNC} UNEXPECTED ERROR in analysis sequence:`, error);
-        showErrorToast(`MoodMusic: Unexpected error - ${error.message}`);
+    showErrorToast(`Spotify Music: Unexpected error - ${error.message}`);
         return false;
     } finally {
         isAnalysisInProgress = false;
@@ -815,17 +821,17 @@ async function manualTriggerMusicAnalysis() {
     console.log(`${LOG_PREFIX} Manual music analysis triggered by user`);
 
     if (!isExtensionActive) {
-        toastr.info("MoodMusic: Extension is paused - use the Resume button in settings to enable");
+    toastr.info("Spotify Music: Extension is paused - use the Resume button in settings to enable");
         return;
     }
 
     if (!isAuthenticated) {
-        toastr.error("MoodMusic: Please log in to Spotify first");
+    toastr.error("Spotify Music: Please log in to Spotify first");
         return;
     }
 
     if (isAnalysisInProgress || currentRequestId !== null) {
-        toastr.info("MoodMusic: Analysis already in progress, please wait");
+    toastr.info("Spotify Music: Analysis already in progress, please wait");
         return;
     }
 
@@ -833,7 +839,7 @@ async function manualTriggerMusicAnalysis() {
     setTimeout(async () => {
         const success = await triggerMoodAnalysisAndPlay();
         if (!success) {
-            toastr.warning("MoodMusic: Could not analyze mood at this time");
+            toastr.warning("Spotify Music: Could not analyze mood at this time");
         }
     }, 100);
 }
@@ -877,21 +883,34 @@ async function handleCharacterEvent(messageId, type, eventSourceType, delayMsOve
 
     // Prevent rapid-fire events (within 1 second)
     if (currentTime - lastEventTimestamp < 1000) {
+        console.log(`${LOG_EVENT_PREFIX} Skipping: debounced (<1s since last event).`);
         return;
     }
 
     // Prevent duplicate processing of the same message
     if (messageId === lastProcessedMessageId) {
+        console.log(`${LOG_EVENT_PREFIX} Skipping: message ${messageId} already processed.`);
         return;
     }
 
     // Check minimum interval since last analysis
     if (currentTime - lastAnalysisTime < MIN_ANALYSIS_INTERVAL_MS) {
+        console.log(`${LOG_EVENT_PREFIX} Skipping: too soon since last analysis (${currentTime - lastAnalysisTime}ms < ${MIN_ANALYSIS_INTERVAL_MS}ms).`);
         return;
     }
 
     // Check if we should trigger
     if (!isExtensionActive || !isAuthenticated || isAnalysisInProgress) {
+        if (!isExtensionActive) console.log(`${LOG_EVENT_PREFIX} Skipping: extension paused.`);
+        if (isAnalysisInProgress) console.log(`${LOG_EVENT_PREFIX} Skipping: analysis already in progress.`);
+        if (!isAuthenticated) {
+            console.log(`${LOG_EVENT_PREFIX} Skipping: Spotify not authenticated.`);
+            // Throttle a user-visible hint so it's clear why nothing happens
+            if (currentTime - lastAuthSkipToastAt > 10000) {
+                lastAuthSkipToastAt = currentTime;
+                showWarningToast('Spotify Music: Auto mode skipped — please log in to Spotify in Settings');
+            }
+        }
         return;
     }
 
@@ -904,6 +923,7 @@ async function handleCharacterEvent(messageId, type, eventSourceType, delayMsOve
     }
 
     // Add delay and ensure only one analysis runs
+    console.log(`${LOG_EVENT_PREFIX} Scheduling analysis in ${typeof delayMsOverride === 'number' ? delayMsOverride : 3000}ms for message ${messageId} (type: ${type}, source: ${eventSourceType}).`);
     const triggerDelay = typeof delayMsOverride === 'number' ? delayMsOverride : 3000;
     analysisTimeout = setTimeout(async () => {
         analysisTimeout = null;
@@ -922,8 +942,10 @@ async function handleCharacterEvent(messageId, type, eventSourceType, delayMsOve
             setTimeout(async () => {
                 const context = getContext();
                 if (context.generationInProgress) {
+                    console.log(`${LOG_EVENT_PREFIX} Generation still in progress at timeout; deferring 3s.`);
                     setTimeout(() => triggerMoodAnalysisAndPlay(), 3000);
                 } else {
+                    console.log(`${LOG_EVENT_PREFIX} Triggering analysis now.`);
                     await triggerMoodAnalysisAndPlay();
                 }
             }, 2000);
@@ -989,7 +1011,8 @@ function setupAutoTrigger() {
         if (lastMessage && !lastMessage.is_user) {
             // If this render was caused by a swipe regeneration, use a shorter delay
             if (genType === 'swipe') {
-                await handleCharacterEvent(messageId, 'character_message_rendered_swipe', 'CHARACTER_MESSAGE_RENDERED', 800);
+                // Use the specialized swipe handler so repeated swipes on the same message still trigger
+                await handleSwipeEvent(messageId);
             } else {
                 await handleCharacterEvent(messageId, 'character_message_rendered', 'CHARACTER_MESSAGE_RENDERED');
             }
@@ -1021,12 +1044,21 @@ function toggleExtensionActiveState() {
 
 async function initializeExtension() {
     console.log(`${LOG_PREFIX} Initializing...`);
-    if (isInitialized) return;
+    // Prevent duplicate initialization across script loads
+    if (isInitialized || (typeof window !== 'undefined' && window[BOOTSTRAP_FLAG])) {
+        console.log(`${LOG_PREFIX} Initialize skipped (already initialized).`);
+        return;
+    }
 
     try {
-        console.log(`${LOG_PREFIX} Loading settings from: ${extensionFolderPath}/settings.html`);
-        const settingsHtml = await $.get(`${extensionFolderPath}/settings.html`);
-        $("#extensions_settings").append(settingsHtml);
+        // Avoid duplicate settings panel
+        if (!$(SETTINGS_WRAPPER_SELECTOR).length) {
+            console.log(`${LOG_PREFIX} Loading settings from: scripts/extensions/third-party/${extensionName}/settings.html`);
+            const settingsHtml = await $.get(`scripts/extensions/third-party/${extensionName}/settings.html`);
+            $("#extensions_settings").append(settingsHtml);
+        } else {
+            console.log(`${LOG_PREFIX} Settings panel already exists, not appending again.`);
+        }
         $('#extensions_settings')
             .on('click', '#moodmusic-save-creds-button', saveSpotifyCredentials)
             .on('click', '#moodmusic-clear-creds-button', clearSpotifyCredentials)
@@ -1056,14 +1088,40 @@ async function initializeExtension() {
             pollingIntervalId = setInterval(pollPlaybackState, POLLING_INTERVAL_MS);
         }
         isInitialized = true;
+        if (typeof window !== 'undefined') {
+            window[BOOTSTRAP_FLAG] = true;
+        }
         console.log(`${LOG_PREFIX} Initialization COMPLETE.`);
     } catch (error) {
         console.error(`${LOG_PREFIX} Initialization FAILED:`, error);
-        const errorMsg = error?.message || error?.toString() || 'Unknown error';
-        $("#extensions_settings").append(`<div class="error" style="color:red;"><b>Spotify Music INIT FAILED:</b> ${errorMsg}. Check Console.</div>`);
+        let errorMsg = 'Unknown error';
+        if (error && typeof error === 'object') {
+            errorMsg = error.message || error.statusText || JSON.stringify(error);
+        } else if (error) {
+            errorMsg = error.toString();
+        }
+        console.error(`${LOG_PREFIX} Detailed error:`, errorMsg);
+        $("#extensions_settings").append(`<div class="error" style="color:red;"><b>Spotify Music INIT FAILED:</b> ${errorMsg}. Check Console for details.</div>`);
     }
 }
 
-$(document).ready(() => {
-    setTimeout(initializeExtension, 1500);
-});
+// Initialize only when the app signals it is ready
+try {
+    if (eventSource && event_types && eventSource.once) {
+        eventSource.once(event_types.APP_READY, () => {
+            console.log(`${LOG_PREFIX} APP_READY received — initializing extension.`);
+            initializeExtension();
+        });
+    } else {
+        // Fallback if event system isn't available yet
+        $(document).ready(() => {
+            setTimeout(initializeExtension, 2000);
+        });
+    }
+} catch (e) {
+    console.error(`${LOG_PREFIX} Failed to set up initialization:`, e);
+    // Last resort fallback
+    $(document).ready(() => {
+        setTimeout(initializeExtension, 2000);
+    });
+}
