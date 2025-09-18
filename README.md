@@ -76,7 +76,9 @@ An intelligent Spotify integration extension for SillyTavern that automatically 
 
 ![png](https://i.imgur.com/iuBm3t5.png)
 
-#### 🤖 **Step 5: Install AI Preset** (Optional but Recommended)
+#### 🤖 **Step 5: Install AI Preset** (Required)
+*The Music.json preset is required for mood analysis and music recommendations to work properly.*
+
 1. **Copy Preset**: Copy the `Music.json` file from the ZIP to:
    ```
    SillyTavern/data/default-user/OpenAI Settings/Music.json
