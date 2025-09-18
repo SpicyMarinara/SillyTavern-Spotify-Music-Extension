@@ -37,6 +37,9 @@ An intelligent Spotify integration extension for SillyTavern that automatically 
 
 #### 📥 **Step 1: Download the Extension Files**
 1. **Download ZIP**: Click the green "Code" button at the top of this GitHub page → "Download ZIP"
+
+![Download ZIP Screenshot](https://i.imgur.com/n6qhpwv.png)
+
 2. **Extract ZIP**: Unzip the downloaded file on your computer
 3. **Install Extension**: Copy the `SillyTavern-Spotify-Music-Extension/` folder from the ZIP to:
    ```
