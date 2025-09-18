@@ -36,12 +36,12 @@ An intelligent Spotify integration extension for SillyTavern that automatically 
 ### Setup Steps
 
 1. **Download Extension**:
-   - Download this extension to your SillyTavern extensions directory:
-   - `SillyTavern/data/default-user/extensions/SillyTavern-Moodmusic-Ext/`
+   - Download this repository and copy the `extension/` folder to your SillyTavern extensions directory:
+   - `SillyTavern/data/default-user/extensions/SillyTavern-Spotify-Music-Extension/`
 
 2. **Install Server Plugin**:
-   - Copy the `plugins/moodmusic` folder to your SillyTavern plugins directory:
-   - `SillyTavern/plugins/moodmusic/`
+   - Copy the `spotify-music/` folder to your SillyTavern plugins directory:
+   - `SillyTavern/plugins/spotify-music/`
 
 3. **Configure Spotify App**:
    - Go to https://developer.spotify.com/dashboard
