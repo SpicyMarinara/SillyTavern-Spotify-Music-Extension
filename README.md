@@ -41,17 +41,18 @@ An intelligent Spotify integration extension for SillyTavern that automatically 
 ![Download ZIP Screenshot](https://i.imgur.com/n6qhpwv.png)
 
 2. **Extract ZIP**: Unzip the downloaded file on your computer
-3. **Install Extension**: Copy the `SillyTavern-Spotify-Music-Extension/` folder from the ZIP to:
+3. **Install Extension**: Copy the `SillyTavern-Spotify-Music-Extension/` folder from the extracted ZIP into your extensions directory:
    ```
-   SillyTavern/data/default-user/extensions/SillyTavern-Spotify-Music-Extension/
+   SillyTavern/data/default-user/extensions/
    ```
-   *(The folder is already properly named - just copy it directly)*
+   *(You'll end up with: `SillyTavern/data/default-user/extensions/SillyTavern-Spotify-Music-Extension/`)*
 
 #### 🔧 **Step 2: Install Server Plugin** 
-1. **Install Plugin**: Copy the `spotify-music/` folder from the ZIP to:
+1. **Install Plugin**: Copy the `spotify-music/` folder from the extracted ZIP into your plugins directory:
    ```
-   SillyTavern/plugins/spotify-music/
+   SillyTavern/plugins/
    ```
+   *(You'll end up with: `SillyTavern/plugins/spotify-music/`)*
 2. **Enable Plugins**: Make sure `enableServerPlugins: true` is set in your `SillyTavern/config.yaml`
 3. **Restart SillyTavern**: Restart the application to load the new plugin
 
