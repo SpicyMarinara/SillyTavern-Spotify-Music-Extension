@@ -37,6 +37,23 @@ let lastEventTimestamp = 0; // Track last event to prevent rapid-fire events
 let currentRequestId = null; // Track the current request to prevent overlaps
 let requestCounter = 0; // Counter for unique request IDs
 
+// Custom toastr notification functions with auto-dismiss
+function showSuccessToast(message, timeout = 4000) {
+    toastr.success(message, '', { timeOut: timeout });
+}
+
+function showInfoToast(message, timeout = 3000) {
+    toastr.info(message, '', { timeOut: timeout });
+}
+
+function showWarningToast(message, timeout = 5000) {
+    toastr.warning(message, '', { timeOut: timeout });
+}
+
+function showErrorToast(message, timeout = 7000) {
+    toastr.error(message, '', { timeOut: timeout });
+}
+
 // Helper to get standard API headers with CSRF token
 function getApiHeaders() {
     return {
@@ -118,7 +135,7 @@ function switchModelMode() {
     updateModelStatusUI();
 
     const mode = useMusicPreset ? 'Music.json preset' : 'current main model';
-    toastr.info(`Spotify Music: Switched to ${mode}`);
+    showInfoToast(`Spotify Music: Switched to ${mode}`);
     console.log(`${LOG_PREFIX} Model mode switched to: ${mode}`);
 }
 
@@ -149,12 +166,12 @@ async function testLikedSongs() {
     }
 
     console.log(`${LOG_PREFIX} Testing Liked Songs playback`);
-    toastr.info("Spotify Music: Testing your Liked Songs...");
+    showInfoToast("Spotify Music: Testing your Liked Songs...");
 
     try {
         const success = await requestPlayLikedSongs();
         if (success) {
-            toastr.success("Spotify Music: Successfully started playing your Liked Songs!");
+            showSuccessToast("Spotify Music: Successfully started playing your Liked Songs!");
         }
     } catch (error) {
         console.error(`${LOG_PREFIX} Error testing Liked Songs:`, error);
@@ -263,7 +280,7 @@ async function saveSpotifyCredentials() {
             throw new Error(data.message || 'Operation failed with an unspecified error.');
         }
 
-        toastr.success("Spotify Music: Spotify credentials saved successfully");
+        showSuccessToast("Spotify Music: Spotify credentials saved successfully");
         console.log(`${LOG_PREFIX_FUNC} Credentials saved and will persist between sessions.`);
         // Don't clear the fields - let loadCredentialsStatus show the saved values
         await loadCredentialsStatus();
@@ -305,7 +322,7 @@ async function clearSpotifyCredentials() {
             throw new Error(data.message || 'Operation failed with an unspecified error.');
         }
 
-        toastr.success("Spotify Music: Spotify credentials cleared");
+        showSuccessToast("Spotify Music: Spotify credentials cleared");
         console.log(`${LOG_PREFIX_FUNC} Credentials cleared successfully.`);
 
         // Clear the UI fields
@@ -483,7 +500,7 @@ async function restoreOriginalPreset() {
         }
     } else if (currentPresetRestorationRequired && !originalPresetName) {
         console.error(`${LOG_PREFIX} Preset restoration required, but original preset name was not captured.`);
-        toastr.warning("Spotify Music: Original preset unknown - please check preset settings");
+        showWarningToast("Spotify Music: Original preset unknown - please check preset settings");
     }
     // Reset flags regardless of outcome
     currentPresetRestorationRequired = false;
@@ -519,7 +536,7 @@ async function getMusicSuggestionFromAI(chatHistorySnippet) {
             return aiResponseText.trim();
         } catch (error) {
             console.error(`${LOG_PREFIX_FUNC} Error during AI music suggestion with Music preset:`, error);
-            toastr.error(`Spotify Music: AI suggestion failed - ${error.message}`);
+            showErrorToast(`Spotify Music: AI suggestion failed - ${error.message}`);
             return null;
         }
     } else {
@@ -548,7 +565,7 @@ Choose a song that captures the emotional tone, energy level, and overall vibe o
             return aiResponseText.trim();
         } catch (error) {
             console.error(`${LOG_PREFIX_FUNC} Error during AI music suggestion with current model:`, error);
-            toastr.error(`Spotify Music: AI suggestion failed - ${error.message}`);
+            showErrorToast(`Spotify Music: AI suggestion failed - ${error.message}`);
             return null;
         }
     }
@@ -590,7 +607,7 @@ function parseMusicFromAiResponse(aiResponseText) {
     }
 
     console.warn(`${LOG_PREFIX_FUNC} Could not parse song info from AI response: "${aiResponseText}"`);
-    toastr.warning("Spotify Music: Could not parse song from AI response");
+    showWarningToast("Spotify Music: Could not parse song from AI response");
     return null;
 }
 
@@ -618,7 +635,7 @@ async function requestPlaySong(suggestion, isOriginalRequest = true) {
                 response.status === 404
             )) {
                 console.log(`${LOG_PREFIX_FUNC} Original song not found, trying Liked Songs fallback`);
-                toastr.warning(`MoodMusic: "${suggestion.artist} - ${suggestion.title}" not found, playing from your Liked Songs`);
+                showWarningToast(`MoodMusic: "${suggestion.artist} - ${suggestion.title}" not found, playing from your Liked Songs`);
 
                 return await requestPlayLikedSongs();
             }
@@ -724,17 +741,17 @@ async function triggerMoodAnalysisAndPlay() {
                 return true; // Success case
             } else {
                 console.error(`${LOG_PREFIX_FUNC} Failed to parse music suggestion from AI response.`);
-                toastr.error("MoodMusic: Could not understand the AI's music suggestion");
+                showErrorToast("MoodMusic: Could not understand the AI's music suggestion");
                 return false;
             }
         } else {
             console.error(`${LOG_PREFIX_FUNC} Failed to get a valid suggestion from AI.`);
-            toastr.error("MoodMusic: AI did not provide a music suggestion");
+            showErrorToast("MoodMusic: AI did not provide a music suggestion");
             return false;
         }
     } catch (error) {
         console.error(`${LOG_PREFIX_FUNC} UNEXPECTED ERROR in analysis sequence:`, error);
-        toastr.error(`MoodMusic: Unexpected error - ${error.message}`);
+        showErrorToast(`MoodMusic: Unexpected error - ${error.message}`);
         return false;
     } finally {
         await restoreOriginalPreset();
