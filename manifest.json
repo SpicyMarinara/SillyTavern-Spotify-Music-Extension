@@ -1,0 +1,11 @@
+{
+    "display_name": "Spotify Music",
+    "loading_order": 999,
+    "requires": [],
+    "optional": [],
+    "js": "index.js",
+    "css": "style.css",
+    "author": "@SpicyMarinara",
+    "version": "3.0",
+    "homePage": "https://github.com/SpicyMarinara/SillyTavern-Spotify-Music-Extension"
+}
