@@ -35,47 +35,59 @@ An intelligent Spotify integration extension for SillyTavern that automatically 
 
 ### Setup Steps
 
-1. **Download Extension**:
-   - Download this repository and copy the `extension/` folder to your SillyTavern extensions directory:
-   - `SillyTavern/data/default-user/extensions/SillyTavern-Spotify-Music-Extension/`
+#### 📥 **Step 1: Download the Extension Files**
+1. **Download ZIP**: Click the green "Code" button at the top of this GitHub page → "Download ZIP"
+2. **Extract ZIP**: Unzip the downloaded file on your computer
+3. **Install Extension**: Copy the `SillyTavern-Spotify-Music-Extension/` folder from the ZIP to:
+   ```
+   SillyTavern/data/default-user/extensions/SillyTavern-Spotify-Music-Extension/
+   ```
+   *(The folder is already properly named - just copy it directly)*
 
-2. **Install Server Plugin**:
-   - Copy the `spotify-music/` folder to your SillyTavern plugins directory:
-   - `SillyTavern/plugins/spotify-music/`
+#### 🔧 **Step 2: Install Server Plugin** 
+1. **Install Plugin**: Copy the `spotify-music/` folder from the ZIP to:
+   ```
+   SillyTavern/plugins/spotify-music/
+   ```
+2. **Enable Plugins**: Make sure `enableServerPlugins: true` is set in your `SillyTavern/config.yaml`
+3. **Restart SillyTavern**: Restart the application to load the new plugin
 
-3. **Configure Spotify App**:
-   - Go to https://developer.spotify.com/dashboard
-   - Log in with your account
-   - Create App
-   - Fill in all the details, like in the screenshot below
-   - In your Spotify app settings, add this redirect URI:
-   - `http://127.0.0.1:8000/api/plugins/spotify-music/auth/callback`
-   - (Adjust port if your SillyTavern runs on a different port)
-  
+#### 🎵 **Step 3: Create Spotify App**
+1. **Go to Spotify Developer**: Visit [https://developer.spotify.com/dashboard](https://developer.spotify.com/dashboard)
+2. **Create App**: Log in and click "Create App"  
+3. **Fill App Details**: Complete all required fields (see screenshot below)
+4. **Set Redirect URI**: Add this exact URL to your app settings:
+   ```
+   http://127.0.0.1:8000/api/plugins/spotify-music/auth/callback
+   ```
+   *(Change `8000` to your SillyTavern port if different)*
+
 ![png](https://i.imgur.com/gsI9uPt.png)
 
-4. **Copy Spotify Secrets**:
-   - Go to your newly created app.
-   - Copy and save Client ID and Client secret from Basic Information
+#### 🔑 **Step 4: Get Spotify Credentials**
+1. **Copy Credentials**: From your Spotify app's "Basic Information" section:
+   - Copy the **Client ID**
+   - Copy the **Client Secret** 
+2. **Save These**: You'll need them in Step 6
 
 ![png](https://i.imgur.com/iuBm3t5.png)
 
-7. **Music.json Preset Setup** (Required for Music Preset Mode):
-   - Download the `Music.json` file from this GitHub repository
-   - In SillyTavern, go to **AI Response Configuration** → **Manage Presets**
-   - Click **Import** and select the downloaded `Music.json` file
-   - This preset is specifically optimized for mood analysis and music recommendations
-   - Select the model to use with the preset
+#### 🤖 **Step 5: Install AI Preset** (Optional but Recommended)
+1. **Copy Preset**: Copy the `Music.json` file from the ZIP to:
+   ```
+   SillyTavern/data/default-user/OpenAI Settings/Music.json
+   ```
+2. **Alternative**: Import via SillyTavern → **AI Response Configuration** → **Manage Presets** → **Import**
 
 ![png](https://i.imgur.com/saQjWXc.png)
 
-8. **Extension Setup**:
-   - Restart SillyTavern
-   - Go to Extensions → Spotify Music
-   - Enter your Spotify Client ID and Client Secret
-   - Click "Save Credentials" then "Login to Spotify"
-   - Complete the OAuth flow in the popup window
-   - Enjoy!
+#### ⚙️ **Step 6: Configure Extension**
+1. **Restart SillyTavern**: Close and reopen SillyTavern to load the extension
+2. **Open Extension**: Go to **Extensions** → **Spotify Music**  
+3. **Enter Credentials**: Paste your Client ID and Client Secret from Step 4
+4. **Save & Login**: Click "Save Credentials" then "Login to Spotify"
+5. **Complete OAuth**: Complete the Spotify login in the popup window
+6. **You're Ready!**: The extension will now automatically play music based on chat mood!
 
 ![png](https://i.imgur.com/6UTzqmJ.png)
 
