@@ -49,7 +49,7 @@ An intelligent Spotify integration extension for SillyTavern that automatically 
    - Create App
    - Fill in all the details, like in the screenshot below
    - In your Spotify app settings, add this redirect URI:
-   - `http://127.0.0.1:8000/api/plugins/moodmusic/auth/callback`
+   - `http://127.0.0.1:8000/api/plugins/spotify-music/auth/callback`
    - (Adjust port if your SillyTavern runs on a different port)
   
 ![png](https://i.imgur.com/gsI9uPt.png)
@@ -139,7 +139,7 @@ The extension requests these Spotify permissions:
 **"Extension initialization failed" or "INIT FAILED"**
 - Ensure `enableServerPlugins: true` is set in your SillyTavern `config.yaml`
 - Restart SillyTavern after making config changes
-- Check that the server plugin files are in the correct `plugins/moodmusic/` directory
+- Check that the server plugin files are in the correct `plugins/spotify-music/` directory
 **"Cannot play - not logged into Spotify"**
 - Click "Login to Spotify" and complete OAuth flow
 - Check that popup windows aren't blocked
