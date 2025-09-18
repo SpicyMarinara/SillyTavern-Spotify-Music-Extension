@@ -23,6 +23,16 @@ An intelligent Spotify integration extension for SillyTavern that automatically 
 - Improved UI with better status indicators
 - Full CSRF token integration for security
 
+## ⚠️ IMPORTANT INSTALLATION WARNING ⚠️
+
+**DO NOT use the "Install via Git URL" feature in SillyTavern's Extensions tab!**
+
+This extension requires both:
+- Extension files (for the UI)
+- Server plugin files (for Spotify API access)
+
+The Git URL installer only downloads extension files and will NOT work. You must manually install both components as described below.
+
 ## Installation
 
 ### Prerequisites
@@ -34,6 +44,9 @@ An intelligent Spotify integration extension for SillyTavern that automatically 
 ![png](https://i.imgur.com/rmySG4N.png)
 
 ### Setup Steps
+
+### Warning
+Entering the Git URL of the extension to install in the Extensions tab on SillyTavern won't work! Follow the instructions below instead.
 
 #### 📥 **Step 1: Download the Extension Files**
 1. **Download ZIP**: Click the green "Code" button at the top of this GitHub page → "Download ZIP"
