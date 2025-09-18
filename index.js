@@ -28,7 +28,8 @@ let isAnalysisInProgress = false;
 let isExtensionActive = true;
 let lastProcessedMessageId = null;
 let analysisTimeout = null;
-let useMusicPreset = true; // true = use Music.json preset, false = use current model
+// Default to using the current main model to avoid changing global presets
+let useMusicPreset = false; // true = use Music.json preset, false = use current model
 let useLikedSongsFallback = true; // Use Liked Songs as fallback when AI suggestions aren't found
 let lastAnalysisTime = 0;
 const MIN_ANALYSIS_INTERVAL_MS = 3000; // Minimum 3 seconds between analyses
@@ -131,17 +132,36 @@ function updateToggleButtonUI() {
 
 // Model switching functionality
 function switchModelMode() {
+    // Toggle model source mode. Preset is always Music; this toggles which model to use.
     useMusicPreset = !useMusicPreset;
+    saveModelModeSetting();
     updateModelStatusUI();
 
-    const mode = useMusicPreset ? 'Music.json preset' : 'current main model';
-    showInfoToast(`Spotify Music: Switched to ${mode}`);
-    console.log(`${LOG_PREFIX} Model mode switched to: ${mode}`);
+    const mode = useMusicPreset ? 'Music preset model' : 'current main model';
+    showInfoToast(`Spotify Music: Model source → ${mode}`);
+    console.log(`${LOG_PREFIX} Model source mode switched to: ${mode}`);
 }
 
 function updateModelStatusUI() {
-    const statusText = useMusicPreset ? 'Music.json preset' : 'Current main model';
+    // Display current model source mode in settings UI
+    const statusText = useMusicPreset ? 'Music preset model' : 'Current main model';
     $('#moodmusic-model-status').text(statusText);
+}
+
+// Persist model mode selection
+function loadModelModeSetting() {
+    try {
+        const raw = localStorage.getItem('moodmusic_use_music_preset');
+        if (raw !== null) {
+            useMusicPreset = JSON.parse(raw) === true;
+        }
+    } catch {}
+}
+
+function saveModelModeSetting() {
+    try {
+        localStorage.setItem('moodmusic_use_music_preset', JSON.stringify(useMusicPreset));
+    } catch {}
 }
 
 // Liked Songs fallback functionality
@@ -508,65 +528,101 @@ async function restoreOriginalPreset() {
 }
 
 // --- AI Interaction ---
-async function getMusicSuggestionFromAI(chatHistorySnippet) {
+async function getMusicSuggestionFromAI(_chatHistorySnippet) {
     const LOG_PREFIX_FUNC = `${LOG_PREFIX} [getMusicSuggestionFromAI]`;
-    const modelMode = useMusicPreset ? 'Music.json preset' : 'current main model';
-    console.log(`${LOG_PREFIX_FUNC} Requesting music suggestion using ${modelMode}...`);
+    // Always use the Music.json preset for suggestion logic; only the MODEL source may vary elsewhere.
+    console.log(`${LOG_PREFIX_FUNC} Requesting music suggestion using Music.json preset (model source mode: ${useMusicPreset ? 'Music preset model' : 'Current main model'})...`);
 
-    if (useMusicPreset) {
-        // Use Music.json preset
-        const switched = await setPresetViaUi(MUSIC_PRESET_NAME);
-        if (!switched) {
-            console.error(`${LOG_PREFIX_FUNC} Failed to switch to preset "${MUSIC_PRESET_NAME}". Skipping AI call.`);
-            return null;
-        }
-        currentPresetRestorationRequired = true;
+    // Snapshot the current model before switching presets
+    const ctx = getContext();
+    const { getChatCompletionModel, chatCompletionSettings } = ctx;
+    const savedCurrentModel = getChatCompletionModel();
 
-        try {
-            console.log(`${LOG_PREFIX_FUNC} Triggering Music preset...`);
-            const aiResponseText = await generateQuietPrompt('', false, false, {
-                source: 'moodmusic-extension'
-            });
+    // Capture original preset, then temporarily switch to Music preset without permanently changing user setup
+    try {
+        originalPresetName = getCurrentPresetNameFromUi();
+    } catch {}
+    const switched = await setPresetViaUi(MUSIC_PRESET_NAME);
+    if (!switched) {
+        console.error(`${LOG_PREFIX_FUNC} Failed to switch to preset "${MUSIC_PRESET_NAME}". Skipping AI call.`);
+        return null;
+    }
+    currentPresetRestorationRequired = true;
 
-            console.log(`${LOG_PREFIX_FUNC} Raw AI response:`, aiResponseText);
-
-            if (!aiResponseText || typeof aiResponseText !== 'string' || aiResponseText.trim() === '') {
-                throw new Error("AI call returned an empty or invalid response.");
+    // Optionally override only the model while keeping all other Music preset settings
+    let restoreModelKey = null;
+    let restoreModelValue = null;
+    try {
+        if (!useMusicPreset && typeof savedCurrentModel === 'string' && savedCurrentModel.length) {
+            // Determine the active source after switching to Music preset
+            const activeSource = chatCompletionSettings.chat_completion_source;
+            // Map source → model field key in oai_settings
+            const sourceToField = {
+                'openai': 'openai_model',
+                'claude': 'claude_model',
+                'makersuite': 'google_model',
+                'vertexai': 'vertexai_model',
+                'openrouter': 'openrouter_model',
+                'ai21': 'ai21_model',
+                'mistralai': 'mistralai_model',
+                'custom': 'custom_model',
+                'cohere': 'cohere_model',
+                'perplexity': 'perplexity_model',
+                'groq': 'groq_model',
+                'electronhub': 'electronhub_model',
+                'nanogpt': 'nanogpt_model',
+                'deepseek': 'deepseek_model',
+                'aimlapi': 'aimlapi_model',
+                'xai': 'xai_model',
+                'pollinations': 'pollinations_model',
+                'cometapi': 'cometapi_model',
+                'moonshot': 'moonshot_model',
+                'fireworks': 'fireworks_model',
+                'azure_openai': 'azure_openai_model',
+            };
+            // Normalize enum to lower-case keys
+            const key = sourceToField[String(activeSource).toLowerCase()];
+            const oai = chatCompletionSettings;
+            if (key && key in oai) {
+                restoreModelKey = key;
+                restoreModelValue = oai[key];
+                oai[key] = savedCurrentModel; // Override only the model
+                console.log(`${LOG_PREFIX_FUNC} Overriding preset model via oai_settings.${key} -> ${savedCurrentModel}`);
+            } else {
+                console.warn(`${LOG_PREFIX_FUNC} Could not map active source to model field; skipping model override.`);
             }
-            return aiResponseText.trim();
-        } catch (error) {
-            console.error(`${LOG_PREFIX_FUNC} Error during AI music suggestion with Music preset:`, error);
-            showErrorToast(`Spotify Music: AI suggestion failed - ${error.message}`);
-            return null;
         }
-    } else {
-        // Use current main model with custom prompt
-        try {
-            console.log(`${LOG_PREFIX_FUNC} Using current main model with custom music analysis prompt...`);
 
-            const musicPrompt = `Based on the following conversation, suggest a single song that matches the current mood and atmosphere. Please respond in this exact format:
+    console.log(`${LOG_PREFIX_FUNC} Triggering Music preset (quiet)...`);
+    // Do NOT send any extra system instruction here; the Music preset already adds the final user-format block.
+    const aiResponseText = await generateQuietPrompt({ quietPrompt: '', quietToLoud: false, skipWIAN: false });
 
-Song: [Artist Name] - [Song Title]
+        console.log(`${LOG_PREFIX_FUNC} Raw AI response:`, aiResponseText);
 
-Recent conversation:
-${chatHistorySnippet}
-
-Choose a song that captures the emotional tone, energy level, and overall vibe of this conversation. Focus on the most recent messages to understand the current mood.`;
-
-            const aiResponseText = await generateQuietPrompt(musicPrompt, false, false, {
-                source: 'moodmusic-extension'
-            });
-
-            console.log(`${LOG_PREFIX_FUNC} Raw AI response:`, aiResponseText);
-
-            if (!aiResponseText || typeof aiResponseText !== 'string' || aiResponseText.trim() === '') {
-                throw new Error("AI call returned an empty or invalid response.");
+        if (!aiResponseText || typeof aiResponseText !== 'string' || aiResponseText.trim() === '') {
+            throw new Error("AI call returned an empty or invalid response.");
+        }
+        return aiResponseText.trim();
+    } catch (error) {
+        console.error(`${LOG_PREFIX_FUNC} Error during AI music suggestion with Music preset:`, error);
+        showErrorToast(`Spotify Music: AI suggestion failed - ${error.message}`);
+        return null;
+    } finally {
+        // Restore overridden model if needed
+        if (restoreModelKey) {
+            try {
+                const oai = chatCompletionSettings;
+                oai[restoreModelKey] = restoreModelValue;
+                console.log(`${LOG_PREFIX_FUNC} Restored oai_settings.${restoreModelKey} to original value.`);
+            } catch (e) {
+                console.warn(`${LOG_PREFIX_FUNC} Failed to restore model override:`, e);
             }
-            return aiResponseText.trim();
-        } catch (error) {
-            console.error(`${LOG_PREFIX_FUNC} Error during AI music suggestion with current model:`, error);
-            showErrorToast(`Spotify Music: AI suggestion failed - ${error.message}`);
-            return null;
+        }
+        // Restore original preset ASAP to avoid impacting user workflow
+        try {
+            await restoreOriginalPreset();
+        } catch (e) {
+            console.warn(`${LOG_PREFIX_FUNC} Failed to restore original preset after suggestion:`, e);
         }
     }
 }
@@ -722,13 +778,6 @@ async function triggerMoodAnalysisAndPlay() {
         console.log(`${LOG_PREFIX_FUNC} Chat snippet (${processedHistory.length} messages, ${chatHistorySnippet.length} characters):`);
         console.log(`${LOG_PREFIX_FUNC} History preview: ${chatHistorySnippet.substring(0, 300)}...`);
 
-        originalPresetName = getCurrentPresetNameFromUi();
-        if (!originalPresetName) {
-            console.error(`${LOG_PREFIX_FUNC} Could not determine original preset name. Restoration may fail.`);
-        } else {
-            console.log(`${LOG_PREFIX_FUNC} Stored original preset: ${originalPresetName}`);
-        }
-
         console.log(`${LOG_PREFIX_FUNC} Calling AI for music suggestion...`);
         const aiResponseText = await getMusicSuggestionFromAI(chatHistorySnippet);
 
@@ -754,7 +803,6 @@ async function triggerMoodAnalysisAndPlay() {
         showErrorToast(`MoodMusic: Unexpected error - ${error.message}`);
         return false;
     } finally {
-        await restoreOriginalPreset();
         isAnalysisInProgress = false;
         const finishedRequestId = currentRequestId;
         currentRequestId = null; // Release the request lock
@@ -823,7 +871,8 @@ function addManualTriggerButton() {
 }
 
 // Unified handler for character messages and swipes
-async function handleCharacterEvent(messageId, type, eventSourceType) {
+async function handleCharacterEvent(messageId, type, eventSourceType, delayMsOverride = null) {
+    const LOG_EVENT_PREFIX = `${LOG_PREFIX} [AUTO-TRIGGER]`;
     const currentTime = Date.now();
 
     // Prevent rapid-fire events (within 1 second)
@@ -855,6 +904,7 @@ async function handleCharacterEvent(messageId, type, eventSourceType) {
     }
 
     // Add delay and ensure only one analysis runs
+    const triggerDelay = typeof delayMsOverride === 'number' ? delayMsOverride : 3000;
     analysisTimeout = setTimeout(async () => {
         analysisTimeout = null;
         const currentTimeAtTimeout = Date.now();
@@ -880,7 +930,7 @@ async function handleCharacterEvent(messageId, type, eventSourceType) {
         } else {
             console.log(`${LOG_EVENT_PREFIX} Conditions not met at timeout, skipping`);
         }
-    }, 3000); // Increased delay to allow main AI generation to fully complete
+    }, triggerDelay); // Delay to allow ST to finish post-processing
 }
 
 // Special handler for swipes that's more lenient than regular character events
@@ -928,31 +978,27 @@ function setupAutoTrigger() {
         return;
     }
 
-    console.log(`${LOG_PREFIX_FUNC} Setting up automatic mood analysis on generation completion and swipes...`);
+    console.log(`${LOG_PREFIX_FUNC} Setting up automatic mood analysis on final character message render...`);
 
-    // Handle when AI generation ends (including streaming completion)
-    eventSource.makeLast(event_types.GENERATION_ENDED, async () => {
-        // Get the latest message ID from chat
+    // Trigger only after the character message is fully rendered
+    eventSource.makeLast(event_types.CHARACTER_MESSAGE_RENDERED, async (messageId, genType) => {
         const context = getContext();
         const chat = context.chat;
-        if (chat && chat.length > 0) {
-            const lastMessageId = chat.length - 1;
-            const lastMessage = chat[lastMessageId];
-
-            // Only trigger for character messages, not user messages
-            if (lastMessage && !lastMessage.is_user) {
-                await handleCharacterEvent(lastMessageId, 'generation_ended', 'GENERATION_ENDED');
+        if (!Array.isArray(chat) || messageId == null || messageId < 0 || messageId >= chat.length) return;
+        const lastMessage = chat[messageId];
+        if (lastMessage && !lastMessage.is_user) {
+            // If this render was caused by a swipe regeneration, use a shorter delay
+            if (genType === 'swipe') {
+                await handleCharacterEvent(messageId, 'character_message_rendered_swipe', 'CHARACTER_MESSAGE_RENDERED', 800);
+            } else {
+                await handleCharacterEvent(messageId, 'character_message_rendered', 'CHARACTER_MESSAGE_RENDERED');
             }
         }
     });
 
-    // Handle when a message is swiped/regenerated
-    eventSource.on(event_types.MESSAGE_SWIPED, async (messageId) => {
-        await handleSwipeEvent(messageId);
-    });
-
+    // No auto-trigger on swipes to avoid premature/duplicate analysis
     isAutoTriggerSetup = true;
-    console.log(`${LOG_PREFIX_FUNC} Auto-trigger setup complete. Extension will analyze mood when AI generation completes (including streaming) and on swipes.`);
+    console.log(`${LOG_PREFIX_FUNC} Auto-trigger setup complete. Extension will analyze mood only after character messages are fully rendered.`);
 }
 
 function toggleExtensionActiveState() {
@@ -990,8 +1036,9 @@ async function initializeExtension() {
             .on('click', '#moodmusic-test-liked-button', testLikedSongs)
             .on('change', '#moodmusic-use-liked-fallback', saveLikedSongsSettings);
 
-        updateToggleButtonUI();
-        updateModelStatusUI();
+    loadModelModeSetting();
+    updateToggleButtonUI();
+    updateModelStatusUI();
         loadLikedSongsSettings();
         findAndStorePresetDropdown();
 
