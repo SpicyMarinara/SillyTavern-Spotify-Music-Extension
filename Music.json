@@ -7,14 +7,14 @@
     "top_a": 1,
     "min_p": 0,
     "repetition_penalty": 1,
-    "openai_max_context": 8192,
-    "openai_max_tokens": 4096,
+    "openai_max_context": 4096,
+    "openai_max_tokens": 1024,
     "wrap_in_quotes": false,
     "names_behavior": -1,
     "send_if_empty": "",
     "impersonation_prompt": "",
-    "new_chat_prompt": "Here is the conversation snippet:",
-    "new_group_chat_prompt": "Here is the conversation snippet:",
+    "new_chat_prompt": "Here is the conversation to analyze:\n<conversation>",
+    "new_group_chat_prompt": "Here is the conversation to analyze:\n<conversation>",
     "new_example_chat_prompt": "",
     "continue_nudge_prompt": "",
     "bias_preset_selected": "Default (none)",
@@ -29,7 +29,7 @@
             "name": "☑ Main",
             "system_prompt": true,
             "role": "system",
-            "content": "You will be acting as an assistant who suggests music on Spotify based on the provided conversation. Your goal is to analyze the provided snippet. You will be proposing only one song title and its artist for the user in the format below:\nTitle: [Song Title]\nArtist: [Artist Name]\n\nHere are some important rules for your choice:\n- Be creative and choose from a wide variety of genres and styles, not just the most popular or most obvious.\n- Use your broad knowledge of music to pick niche pieces that the user might not have heard before.\n- You can pick music from different sources (games, movies, etc.).\n- Try to relate at least one aspect of the scene to the current song, deciding the most fitting soundtrack.\n- The song must be available on Spotify.\n\nHere is some context for the conversation:",
+            "content": "{{// Main prompt, do not edit. }}{{trim}}\nYou will be acting as an assistant who suggests music on Spotify. Your goal is to analyze the provided conversation and choose the best soundtrack for the provided context. You will be proposing only one song title and its artist for the user in the format below:\nTitle: [Song Title]\nArtist: [Artist Name]",
             "identifier": "main",
             "injection_position": 0,
             "injection_depth": 4,
@@ -75,7 +75,7 @@
         },
         {
             "identifier": "worldInfoAfter",
-            "name": "☑ World Info (After)",
+            "name": "☒ World Info (After)",
             "system_prompt": true,
             "marker": true,
             "role": "system",
@@ -88,7 +88,7 @@
         },
         {
             "identifier": "worldInfoBefore",
-            "name": "☑ World Info (Before)",
+            "name": "☒ World Info (Before)",
             "system_prompt": true,
             "marker": true,
             "role": "system",
@@ -103,7 +103,7 @@
             "identifier": "enhanceDefinitions",
             "role": "system",
             "name": "☐ Favorite Genres & Artists",
-            "content": "\n{{// Edit accordingly based on your preferences. }}{{trim}}\nHere is some information about the user's preferences:\nThe user enjoys songs in the [Genre] genre, and artists such as [Artists].",
+            "content": "\n{{// Edit accordingly based on your preferences. }}{{trim}}\nHere is some information about the user's preferences. They might be empty if none were provided:\n<preferences>\n<genres>\n{{// Replace this line with your favorite genres. }}{{trim}}\n</genres>\n<artists>\n{{// Replace this line with your favorite artists. }}{{trim}}\n</artists>\n</preferences>",
             "system_prompt": true,
             "marker": false,
             "injection_position": 0,
@@ -140,7 +140,7 @@
         },
         {
             "identifier": "scenario",
-            "name": "☑ Scenario",
+            "name": "☒ Scenario",
             "system_prompt": true,
             "marker": true,
             "role": "system",
@@ -165,54 +165,32 @@
             "forbid_overrides": false
         },
         {
-            "identifier": "aa239bba-3163-4551-a4c9-e6d62d5cb166",
-            "system_prompt": false,
-            "enabled": false,
-            "marker": false,
-            "name": "post history",
-            "role": "system",
-            "content": "\n",
-            "injection_position": 0,
-            "injection_depth": 4,
-            "forbid_overrides": false
-        },
-        {
-            "identifier": "9dca4db0-d689-4f80-b5f7-77536a3d2b60",
-            "system_prompt": false,
-            "enabled": false,
-            "marker": false,
-            "name": "Systembreak",
-            "role": "user",
-            "content": "\n",
-            "injection_position": 0,
-            "injection_depth": 4,
-            "forbid_overrides": false
-        },
-        {
-            "identifier": "9fe7e950-e509-4b2e-af00-b853076e2328",
-            "system_prompt": false,
-            "enabled": false,
-            "marker": false,
-            "name": "Prefil",
-            "role": "assistant",
-            "content": "I will now make my music selection using the provided format and nothing else.",
-            "injection_position": 0,
-            "injection_depth": 4,
-            "forbid_overrides": false
-        },
-        {
             "identifier": "b1e81d53-acce-426e-88ab-a3c496cb8109",
             "system_prompt": false,
             "enabled": false,
             "marker": false,
             "name": "☑ Format",
             "role": "user",
-            "content": "{{// Response format, do not change. }}{{trim}}\nRespond ONLY with the title and artist in the exact format below. Replace [brackets] with appropriate information. Ensure your details are correct, and the song is available on Spotify, as it will be played on it:\nTitle: [Song Title]\nArtist: [Artist Name]",
+            "content": "</conversation>\n\n{{// Response format, do not change. }}{{trim}}\nConsider the conversation above and respond ONLY with the title and artist in the exact format below. Choose the most fitting music for the scene. Replace [brackets] with appropriate information. Ensure your details are correct, and the song is available on Spotify, as it will be played on it:\nTitle: [Song Title]\nArtist: [Artist Name]",
             "injection_position": 0,
             "injection_depth": 4,
             "forbid_overrides": false,
             "injection_order": 100,
             "injection_trigger": []
+        },
+        {
+            "identifier": "73b663ed-654d-41f6-ade8-cb8702c15bf5",
+            "system_prompt": false,
+            "enabled": false,
+            "marker": false,
+            "name": "☑ Rules",
+            "role": "system",
+            "content": "\n{{// Do not edit unless you know what you're doing. }}{{trim}}\nHere are some important rules for your choice:\n- Be creative and pick from a wide variety of genres and styles, not just the most popular or most obvious.\n- Use your broad knowledge of music to pick niche pieces that the user might not have heard before.\n- You can pick music from different sources (games, movies, etc.).\n- Try to relate at least one aspect of the scene and its mood to the current song, deciding the most fitting piece.\n- The song must be available on Spotify.",
+            "injection_position": 0,
+            "injection_depth": 4,
+            "injection_order": 100,
+            "injection_trigger": [],
+            "forbid_overrides": false
         }
     ],
     "prompt_order": [
@@ -273,20 +251,12 @@
                     "enabled": true
                 },
                 {
-                    "identifier": "worldInfoBefore",
-                    "enabled": true
-                },
-                {
-                    "identifier": "worldInfoAfter",
-                    "enabled": true
-                },
-                {
-                    "identifier": "scenario",
-                    "enabled": true
-                },
-                {
                     "identifier": "enhanceDefinitions",
-                    "enabled": false
+                    "enabled": true
+                },
+                {
+                    "identifier": "73b663ed-654d-41f6-ade8-cb8702c15bf5",
+                    "enabled": true
                 },
                 {
                     "identifier": "chatHistory",
@@ -305,6 +275,14 @@
                     "enabled": false
                 },
                 {
+                    "identifier": "worldInfoBefore",
+                    "enabled": false
+                },
+                {
+                    "identifier": "worldInfoAfter",
+                    "enabled": false
+                },
+                {
                     "identifier": "charDescription",
                     "enabled": false
                 },
@@ -314,6 +292,10 @@
                 },
                 {
                     "identifier": "personaDescription",
+                    "enabled": false
+                },
+                {
+                    "identifier": "scenario",
                     "enabled": false
                 },
                 {
