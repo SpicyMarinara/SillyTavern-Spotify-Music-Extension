@@ -2,6 +2,8 @@
 
 import { getContext } from '../../../extensions.js';
 import { eventSource, event_types, generateQuietPrompt, generateRaw, token } from '../../../../script.js';
+import { SlashCommand } from '../../../../slash-commands/SlashCommand.js';
+import { SlashCommandParser } from '../../../../slash-commands/SlashCommandParser.js';
 
 const extensionName = "SillyTavern-Spotify-Music-Extension";
 const extensionFolderPath = `scripts/extensions/${extensionName}`;
@@ -820,11 +822,6 @@ async function triggerMoodAnalysisAndPlay() {
 async function manualTriggerMusicAnalysis() {
     console.log(`${LOG_PREFIX} Manual music analysis triggered by user`);
 
-    if (!isExtensionActive) {
-    toastr.info("Spotify Music: Extension is paused - use the Resume button in settings to enable");
-        return;
-    }
-
     if (!isAuthenticated) {
     toastr.error("Spotify Music: Please log in to Spotify first");
         return;
@@ -874,6 +871,21 @@ function addManualTriggerButton() {
     $('#send_form').prepend(button);
 
     console.log(`${LOG_PREFIX} Manual trigger button added to UI`);
+}
+
+// Register slash command for choosing songs
+function registerSlashCommands() {
+    SlashCommandParser.addCommandObject(SlashCommand.fromProps({
+        name: 'choose-song',
+        aliases: ['choosesong', 'music-choose', 'spotify-choose'],
+        callback: async () => {
+            await manualTriggerMusicAnalysis();
+            return '';
+        },
+        helpString: 'Choose a song based on the current conversation mood using Spotify Music Extension',
+    }));
+
+    console.log(`${LOG_PREFIX} Slash commands registered`);
 }
 
 // Unified handler for character messages and swipes
@@ -1079,6 +1091,9 @@ async function initializeExtension() {
 
         // Add the manual trigger button
         addManualTriggerButton();
+
+        // Register slash commands
+        registerSlashCommands();
 
         await loadCredentialsStatus();
         await checkAuthStatus();

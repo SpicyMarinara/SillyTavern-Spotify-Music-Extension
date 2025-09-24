@@ -122,9 +122,18 @@ The extension automatically triggers when:
 - **Current Model Mode**: Uses your currently selected AI model
 
 ### Manual Controls
-- **Manual Trigger**: Force mood analysis and song selection
+- **Manual Trigger**: Force mood analysis and song selection using the "Choose Song" button
 - **Test Liked Songs**: Verify your Spotify connection and fallback system
 - **Enable Liked Songs Fallback**: Toggle intelligent fallback system
+
+### Slash Commands
+You can trigger music selection using slash commands in the chat:
+- `/choose-song` - Choose a song based on current conversation mood
+- `/choosesong` - Alias for `/choose-song`
+- `/music-choose` - Alias for `/choose-song`
+- `/spotify-choose` - Alias for `/choose-song`
+
+All slash commands work even when the extension is paused and only require Spotify authentication.
 
 ### Search Algorithm
 The extension uses a 4-tier search strategy:
