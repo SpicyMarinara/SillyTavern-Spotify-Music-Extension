@@ -2,8 +2,8 @@
 
 import { getContext } from '../../../extensions.js';
 import { eventSource, event_types, generateQuietPrompt, generateRaw, token } from '../../../../script.js';
-import { SlashCommand } from '../../../../slash-commands/SlashCommand.js';
-import { SlashCommandParser } from '../../../../slash-commands/SlashCommandParser.js';
+import { SlashCommand } from '../../../slash-commands/SlashCommand.js';
+import { SlashCommandParser } from '../../../slash-commands/SlashCommandParser.js';
 
 const extensionName = "SillyTavern-Spotify-Music-Extension";
 const extensionFolderPath = `scripts/extensions/${extensionName}`;
@@ -721,12 +721,12 @@ async function requestPlaySong(suggestion, isOriginalRequest = true) {
     }
 }
 
-async function triggerMoodAnalysisAndPlay() {
+async function triggerMoodAnalysisAndPlay(bypassActiveCheck = false) {
     const LOG_PREFIX_FUNC = `${LOG_PREFIX} [triggerMoodAnalysisAndPlay]`;
 
-    // Check basic conditions
-    if (isAnalysisInProgress || !isExtensionActive || !isAuthenticated) {
-        console.log(`${LOG_PREFIX_FUNC} Aborted (Analysis running: ${isAnalysisInProgress}, Active: ${isExtensionActive}, Auth: ${isAuthenticated})`);
+    // Check basic conditions - allow bypass of extension active check for manual triggers
+    if (isAnalysisInProgress || (!bypassActiveCheck && !isExtensionActive) || !isAuthenticated) {
+        console.log(`${LOG_PREFIX_FUNC} Aborted (Analysis running: ${isAnalysisInProgress}, Active: ${isExtensionActive}, Auth: ${isAuthenticated}, BypassActive: ${bypassActiveCheck})`);
         return true; // Return true to avoid error popup for expected conditions
     }
 
@@ -834,7 +834,7 @@ async function manualTriggerMusicAnalysis() {
 
     // Add a slight delay to ensure UI responsiveness
     setTimeout(async () => {
-        const success = await triggerMoodAnalysisAndPlay();
+        const success = await triggerMoodAnalysisAndPlay(true); // Pass true to bypass extension active check
         if (!success) {
             toastr.warning("Spotify Music: Could not analyze mood at this time");
         }
